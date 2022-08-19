@@ -1,5 +1,7 @@
 # Mox.moe Epub Manga Repacker
 
+![](https://img.shields.io/badge/python-v3.9-orange) ![](https://img.shields.io/github/license/Haoyi-Han/Moxmoe-Epub-Manga-Repacker)
+
 English | [中文](./README_ZH.md)
 
 ## Introduction
