@@ -26,7 +26,7 @@ cd Moxmoe-Epub-Manga-Repacker
 
 Copy your manga files (or the whole folder) to this directory (`Moxmoe-Epub-Manga-Repacker`) then run `MoeKepub2Cbz.py` script:
 ```shell
-python -m MoeKepub2Cbz.py
+python -s MoeKepub2Cbz.py
 ```
 
 Wait until the program finishes its task. Then open the `output` folder to check the target files.
