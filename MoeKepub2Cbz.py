@@ -54,7 +54,7 @@ def suffixChange(filelist: list, inType: str='.epub', outType: str='.zip') -> li
 
 # 漫画名称抽取
 def comicNameExtract(comic_file) -> str:
-    return re.search(r'moe](.+?)\.+?', str(comic_file.stem)).group(1)
+    return re.search(r'(\[Mox.moe\]|\[Mox\])(.+?)\.+?', str(comic_file.stem)).group(2)
 
 # 单个压缩包根据HTML文件中的图片地址进行提取
 def loadZipImg(zip_file, cachefolder):
