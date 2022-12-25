@@ -1,6 +1,7 @@
 import os, shutil, pathlib, zipfile, re
 from bs4 import BeautifulSoup
 import signal
+import lxml
 from alive_progress import alive_bar
 
 # 键盘Ctrl+C中断命令优化（暂时用不到）
