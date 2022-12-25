@@ -56,6 +56,30 @@ def suffixChange(filelist: list, inType: str='.epub', outType: str='.zip') -> li
 def comicNameExtract(comic_file) -> str:
     return re.search(r'(\[Mox.moe\]|\[Mox\])(.+?)\.+?', str(comic_file.stem)).group(2)
 
+# HTML 按照 vol.opf 中规定的顺序抽取成列表
+# 本函数是为 Mox.moe 新发布的文件设计，但兼容老版本
+# 以解决新版本文件中网页顺序打乱导致图片顺序错乱问题
+def htmlExtractToList(extract_dir):
+    opf_file = extract_dir / 'vol.opf'
+    with opf_file.open('r', encoding='utf-8') as volopf:
+        soup_0 = BeautifulSoup(volopf.read(), features='xml')
+    raw_pages = soup_0.package.manifest.find_all('item', {'media-type': 'application/xhtml+xml'})
+    reduced_pages = []
+    for raw_pg in raw_pages:
+        raw_id = re.sub('Page_', '', raw_pg['id'])
+        raw_file_stem = re.findall(r'[^/]+\.html', raw_pg['href'])[0]
+        raw_path = extract_dir / 'html' / raw_file_stem        
+        if 'cover' == raw_id:
+            raw_id = 0
+        elif raw_id.isnumeric():
+            raw_id = int(raw_id)
+        else:
+            # 'createby' == raw_id
+            raw_id = len(raw_pages)
+        reduced_pages.append((raw_id, raw_path))
+    reduced_pages.sort(key=lambda x: x[0])
+    return list(zip(*reduced_pages))[1]
+
 # 单个压缩包根据HTML文件中的图片地址进行提取
 def loadZipImg(zip_file, cachefolder):
     print("开始解析 ", zip_file.stem)
@@ -68,16 +92,9 @@ def loadZipImg(zip_file, cachefolder):
     shutil.unpack_archive(str(zip_file), extract_dir=extract_dir, format="zip")
     html_dir = extract_dir / 'html'
     img_dir = extract_dir / 'image'
-    html_list: list = copyDirStructExtToList(str(html_dir), ext=".html")
-    def checkIfHtmlFileNameLegal(name_str: str) -> bool:
-        if name_str.isnumeric(): return True
-        else:
-            name_str = name_str.lower()
-            return (('cover.jpg' in name_str) or ('createby' in name_str))
+    html_list: list = htmlExtractToList(extract_dir)
     for html_file in html_list:
         html_file_name: str = html_file.stem
-        if not checkIfHtmlFileNameLegal(html_file_name):
-            continue
         with html_file.open('r', encoding='utf-8') as hf:
             soup = BeautifulSoup(hf.read(), 'html.parser')
         title: str = soup.title.string
