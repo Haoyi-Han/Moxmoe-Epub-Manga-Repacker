@@ -27,7 +27,7 @@ cd Moxmoe-Epub-Manga-Repacker
 
 将漫画文档（或整个文件夹）复制到该文件夹（`Moxmoe-Epub-Manga-Repacker`），之后运行`MoeKepub2Cbz.py`脚本：
 ```shell
-python -m MoeKepub2Cbz.py
+python -s MoeKepub2Cbz.py
 ```
 
 等待程序运行结束。此后您可以进入`output`文件夹检查转换结果。
