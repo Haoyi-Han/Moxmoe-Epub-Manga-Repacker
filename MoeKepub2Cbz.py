@@ -24,7 +24,7 @@ def copyDirStructToList(root: str) -> list:
 # 创建EPUB文件列表（按原目录结构）
 def copyDirStructExtToList(root: str, ext='.epub') -> list:
     filelist: list = copyDirStructToList(root)
-    return [p for p in filelist if p.suffix==ext]
+    return [p for p in filelist if (not p.stem.startswith('._')) and (p.suffix==ext)]
 
 # 初始化路径并复制目录结构
 def initPathObj(output_folder_name: str) -> tuple:
