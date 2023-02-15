@@ -11,22 +11,28 @@ This project is designed to unpack the EPUB file (which seen as ZIP file), itera
 
 This project allows the user to transfrom manga files which are stored in a certain directory struture. The program will duplicate the structure and build new manga files in the respective location.
 
-**Attention!** This project only fits for manga EPUB files downloaded from websites [Vol.moe](https://vol.moe) or [Mox.moe](https://mox.moe). The developer is not responsible for the failure on EPUB manga downloaded from other sources.
+**Attention!** This project only fits for manga EPUB files downloaded from [Kox.moe](https://mox.moe) or its mirror sites. The developer is not responsible for the failure on EPUB manga downloaded from other sources.
 
-**Attention!** This project is freely used by any Github user following the MIT License, but please don't disseminate this project on Vol.moe or Mox.moe. The developer would appreciate it if you benefit from this project.
+**Attention!** This project is freely used by any Github user following the MIT License, but please don't disseminate this project on Kox.moe. The developer would appreciate it if you benefit from this project.
 
 The developer would try to do a favor if you raise an issue as well.
 
 ## Installation & Usage
 Clone this project from Github with commands below:
+
 ```shell
 git clone https://github.com/Haoyi-Han/Moxmoe-Epub-Manga-Repacker.git
 cd Moxmoe-Epub-Manga-Repacker
 ```
 
-Copy your manga files (or the whole folder) to this directory (`Moxmoe-Epub-Manga-Repacker`) then run `MoeKepub2Cbz.py` script:
+Copy your manga files (or the whole folder) to this directory (`Moxmoe-Epub-Manga-Repacker`).
+
+**Attention!** Please keep file names inchanged until the conversion finished, because the program identify each manga file by its name.
+
+Run `main.py` script:
+
 ```shell
-python -s MoeKepub2Cbz.py
+python main.py
 ```
 
 Wait until the program finishes its task. Then open the `output` folder to check the target files.

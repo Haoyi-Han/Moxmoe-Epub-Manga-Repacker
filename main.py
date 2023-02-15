@@ -55,7 +55,7 @@ def suffixChange(filelist: list, inType: str='.epub', outType: str='.zip') -> li
 
 # 漫画名称抽取
 def comicNameExtract(comic_file) -> str:
-    return re.search(r'(\[Mox.moe\]|\[Mox\])(.+?)\.+?', str(comic_file.stem)).group(2)
+    return re.search(r'^(\[.+?\])(.+?)\.+?', str(comic_file.stem)).group(2)
 
 # HTML 按照 vol.opf 中规定的顺序抽取成列表
 # 本函数是为 Mox.moe 新发布的文件设计，但兼容老版本
