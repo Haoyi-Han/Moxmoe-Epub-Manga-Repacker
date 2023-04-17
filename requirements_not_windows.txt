@@ -1,0 +1,2 @@
+beautifulsoup4==4.12.2
+rich==13.3.4

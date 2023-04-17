@@ -1,2 +1,5 @@
-beautifulsoup4==4.11.1
-rich==13.3.3
+beautifulsoup4==4.12.2
+comtypes==1.1.14
+pywin32==305.1
+rich==13.3.4
+win32gui==221.6
