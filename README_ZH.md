@@ -37,4 +37,6 @@ cd Moxmoe-Epub-Manga-Repacker
 python main.py
 ```
 
+![](./img/2023-04-18.png)
+
 等待程序运行结束。此后您可以进入`output`文件夹检查转换结果。

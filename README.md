@@ -35,4 +35,6 @@ Run `main.py` script:
 python main.py
 ```
 
+![](./img/2023-04-18.png)
+
 Wait until the program finishes its task. Then open the `output` folder to check the target files.
