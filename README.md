@@ -38,3 +38,7 @@ python main.py
 ![](./img/2023-04-18.png)
 
 Wait until the program finishes its task. Then open the `output` folder to check the target files.
+
+## Stargazers over time
+
+[![Stargazers over time](https://starchart.cc/Haoyi-Han/Moxmoe-Epub-Manga-Repacker.svg)](https://starchart.cc/Haoyi-Han/Moxmoe-Epub-Manga-Repacker)
