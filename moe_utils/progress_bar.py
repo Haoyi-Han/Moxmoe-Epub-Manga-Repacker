@@ -1,4 +1,4 @@
-from rich.progress import Progress, Task, Text, ProgressColumn, TextColumn, BarColumn, MofNCompleteColumn, TimeElapsedColumn, TimeRemainingColumn
+from rich.progress import Progress, Task, Text, ProgressColumn, TextColumn, BarColumn, MofNCompleteColumn, SpinnerColumn, TimeElapsedColumn, TimeRemainingColumn
 
 # 进度条外观设计
 class NaiveTransferSpeedColumn(ProgressColumn):
@@ -11,6 +11,7 @@ class NaiveTransferSpeedColumn(ProgressColumn):
 def generateProgressBar():
     return Progress(
         TextColumn('[green]{task.description}'),
+        SpinnerColumn(),
         BarColumn(),
         MofNCompleteColumn(),
         TextColumn('[green][{task.percentage:>3.1f}%]'),
