@@ -5,11 +5,14 @@ import moe_utils.file_system as mfst
 import moe_utils.utils as mutl
 from rich.table import Table
 import configparser as cp
+import retry
 
 class Repacker:
-    def __init__(self, config_path: str):
+    def __init__(self, config_path: str, /, ui_active: bool=False, logger=None):
         self.progress = mpbr.generateProgressBar()
         self.console = self.progress.console
+        self.ui_active = ui_active
+        self.logger = logger
         
         self.log(f'[yellow]开始初始化程序...')
         self.config = cp.ConfigParser()
@@ -25,11 +28,16 @@ class Repacker:
             )
         self.cachefolder = self.curr_path / 'cache'
         
+        self.multithread_on = self.config.getboolean('DEFAULT', 'MultiThread')
+        
     def print(self, s):
-        self.console.print(s)
+        if self.ui_active:
+            self.logger.write(s)
+        else:
+            self.console.print(s)
         
     def log(self, s: str):
-        self.console.print(f"[blue][{mutl.currTimeFormat()}][/] {s}")
+        self.print(f"[blue][{mutl.currTimeFormat()}][/] {s}")
         
     def repack(self, file_t):
         comic_name: str = file_t.parents[0].name
@@ -38,7 +46,6 @@ class Repacker:
             self._packFolder(comic_src, self.output_path)
         else:
             self._packFolder(comic_src, self.output_path / comic_name)
-        mfst.removeIfExists(self.cachefolder / comic_name)
 
     # 初始化路径并复制目录结构
     def _initPathObj(
@@ -135,6 +142,8 @@ class Repacker:
 
     # 打包成压缩包并重命名
     # 用 shutil.make_archive() 代替 zipFile，压缩体积更小
+    # 修改输出路径为绝对路径，避免多次切换工作目录 20230429
+    @retry.retry(Exception, tries=5, delay=0.5)
     def _packFolder(
         self, 
         inDir: str, 
@@ -143,11 +152,8 @@ class Repacker:
         ):
         comic_name: str = inDir.name
         self.log(f'{comic_name} => [yellow]开始打包')
+        shutil.make_archive(os.path.join(outDir, comic_name), format='zip', root_dir=inDir)
         zip_path = pathlib.Path(outDir, comic_name + '.zip')
-        curr_path = os.getcwd()
-        os.chdir(str(outDir))
-        shutil.make_archive(comic_name, format='zip', root_dir=inDir)
         cbz_path = zip_path.rename(zip_path.with_suffix(ext))
-        os.chdir(curr_path)
         self.log(f'{comic_name} => [green]打包完成')
         return cbz_path
