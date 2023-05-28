@@ -1,94 +1,98 @@
 # 主程序引用库
-import moe_utils.file_system as mfst
-import moe_utils.manga_repacker as mmrp
-import moe_utils.taskbar_indicator as mtbi
-import concurrent.futures
 import os
+import pathlib
 
 # 程序显示引用库
 from rich.prompt import Prompt
-from rich.console import Console
+# 程序异常打印库
+from rich.traceback import install
+
+import moe_utils.file_system as mfst
+import moe_utils.manga_repacker as mmrp
+import moe_utils.progress_bar as mpbr
+import moe_utils.taskbar_indicator as mtbi
 import moe_utils.terminal_ui as mtui
 
+install(show_locals=True)
+
 ##############################
+
+# 全局初始化 Repacker 对象 20230521
+pb = mpbr.generateProgressBar()
+console = pb.console
+repacker = mmrp.Repacker(console=console)
+
+# 全局初始化 Windows 任务栏对象 20230521
+win_tb = mtbi.WinTaskbar()
+
 
 # 键盘Ctrl+C中断命令优化
 def keyboardHandler(signum, frame):
     try:
         # 重置进度条
-        global repacker, taskbar, hWnd
-        repacker.progress.stop()
-        mtbi.resetTaskbarProgress(taskbar, hWnd)
-        
-        # 多线程状态下终止所有线程
-        if repacker.multithread_on:
-            try:
-                global executor
-                executor.shutdown(wait=False, cancel_futures=True)
-            except:
-                raise Exception('Thread not cancelled normally.')            
-        
+        global repacker, console, win_tb, pb
+        pb.stop()
+        win_tb.resetTaskbarProgress()
+
         # 选择是否保留已转换文件和缓存文件夹
-        repacker.print(f'[yellow]您手动中断了程序。')
+        console.print(f'[yellow]您手动中断了程序。')
         resp_out = Prompt.ask("请选择是否保留已转换文件", choices=["y", "n"], default="y")
         resp_cache = Prompt.ask("请选择是否保留缓存文件夹", choices=["y", "n"], default="n")
         # 除打包阶段使用的当前电子书文件外，其他文件均可清除
         # 之后会考虑将打包阶段作为独立进程，并在中断退出时结束
         if resp_out == 'n':
-            os.chdir(repacker.curr_path) # 防止进程占用输出文件夹 20230429
-            mfst.removeIfExists(repacker.output_path)
+            os.chdir(repacker.inputDir)  # 防止进程占用输出文件夹 20230429
+            mfst.removeIfExists(repacker.outputDir)
         if resp_cache != 'y':
-            os.chdir(repacker.curr_path) # 防止进程占用缓存文件夹 20230429
-            mfst.removeIfExists(repacker.cachefolder)
+            os.chdir(repacker.inputDir)  # 防止进程占用缓存文件夹 20230429
+            mfst.removeIfExists(repacker.cacheDir)
     finally:
         exit(0)
 
+
+# 将主要执行过程封装，用于单线程或多线程时调用 20230429
+# 将执行过程提取到主函数外部 20230521
+def work(file_t):
+    repacker.repack(pathlib.Path(file_t))
+
+
 # 主程序
-if __name__ == '__main__':
+def main():
     # 优化键盘中断命令
     import signal
     signal.signal(signal.SIGINT, keyboardHandler)
     signal.signal(signal.SIGTERM, keyboardHandler)
-    
-    # 采用 rich.traceback 作为默认异常打印
-    from rich.traceback import install
-    install(show_locals=True)
-    
-    # 初始化 Windows 任务栏对象
-    taskbar, hWnd = mtbi.initWindowsTaskbar()
-    
-    # 欢迎界面
-    Console().print(mtui.welcome_panel)
-    
-    # 初始化转换器对象
-    repacker = mmrp.Repacker('./config.conf')    
-    
-    # 采用 rich.progress 实现进度条效果
-    repacker.log(f'[yellow]开始提取图片并打包文件...')
-    repacker.progress.start()
-    total = len(repacker.curr_filelist)
-    task = repacker.progress.add_task(description='Kox.moe', total=total)
-    
-    # 将主要执行过程封装，用于单线程或多线程时调用 20230429
-    def work(elem):
-        i, file_t = elem
-        mtbi.setTaskbarProgress(taskbar, hWnd, i, total)
-        repacker.repack(file_t)
-        repacker.progress.update(task, advance=1)
-    
-    # 引入 CPU 线程池，提高任务执行效率 20230429
-    if repacker.multithread_on:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
-            _ = executor.map(work, enumerate(repacker.curr_filelist))
-    else:
-        for elem in enumerate(repacker.curr_filelist):
-            work(elem)
-            
-    repacker.progress.stop()
-    mtbi.resetTaskbarProgress(taskbar, hWnd)
 
-    repacker.log(f'[yellow]开始清理缓存文件...')
-    os.chdir(repacker.output_path) # 防止进程占用缓存文件夹 20230429
-    mfst.removeIfExists(repacker.cachefolder)
-    
-    repacker.log(f'[green]所有转换任务完成！')
+    # 欢迎界面
+    console.print(mtui.welcome_panel)
+
+    # 初始化转换器对象
+    repacker.initFromConfig('./config.conf')
+
+    # 采用 rich.progress 实现进度条效果
+    mtui.log(console, f'[yellow]开始提取图片并打包文件...')
+    pb.start()
+    total = len(repacker.fileList)
+    task = pb.add_task(description='Kox.moe', total=total)
+
+    # 引入 CPU 线程池，提高任务执行效率 20230429
+    # 更改 CPU 线程池为 CPU 进程池 20230521
+    # 弃用多进程/多线程，改用异步 20230525
+    # 移除所有多进程/多线程/协程模块 20230528
+    for i, file_t in enumerate(repacker.fileList):
+        work(file_t)
+        win_tb.setTaskbarProgress(i, total)
+        pb.update(task, advance=1)
+
+    pb.stop()
+    win_tb.resetTaskbarProgress()
+
+    mtui.log(console, f'[yellow]开始清理缓存文件...')
+    os.chdir(repacker.outputDir)  # 防止进程占用缓存文件夹 20230429
+    mfst.removeIfExists(repacker.cacheDir)
+
+    mtui.log(console, f'[green]所有转换任务完成！')
+
+
+if __name__ == '__main__':
+    main()
