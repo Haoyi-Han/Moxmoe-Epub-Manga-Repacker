@@ -1,139 +1,163 @@
-import os, shutil, pathlib, re
-from bs4 import BeautifulSoup
-import moe_utils.progress_bar as mpbr
-import moe_utils.file_system as mfst
-import moe_utils.utils as mutl
-from rich.table import Table
 import configparser as cp
+import os
+import re
+import shutil
+from pathlib import Path
+from typing import Any, Union
+
 import retry
+from bs4 import BeautifulSoup
+
+import moe_utils.file_system as mfst
+import moe_utils.terminal_ui as mtui
+import moe_utils.utils as mutl
+
 
 class Repacker:
-    def __init__(self, config_path: str, /, ui_active: bool=False, logger=None):
-        self.progress = mpbr.generateProgressBar()
-        self.console = self.progress.console
+    def __init__(self, console, ui_active: bool = False, logger=None):
+        self._inputDir = ''
+        self._outputDir = ''
+        self._cacheDir = ''
+        self._fileList = []
+        self.console = console
         self.ui_active = ui_active
         self.logger = logger
-        
+
+    def initFromConfig(self, config_path: str):
         self.log(f'[yellow]开始初始化程序...')
-        self.config = cp.ConfigParser()
-        self.config.read(config_path)
-        
-        self.curr_path, self.output_path, self.curr_filelist = self._initPathObj(
-            use_curr_as_input_dir=self.config.getboolean('DEFAULT', 'UseCurrentDirAsInput'),
-            input_dir=self.config['DEFAULT']['InputDir'],
-            create_output_folder_under_input_dir=self.config.getboolean('DEFAULT', 'CreateOutputDirUnderInputDir'),
-            output_dir=self.config['DEFAULT']['OutputDir'],
-            output_folder=self.config['DEFAULT']['OutputFolder'],
-            exclude=self.config['DEFAULT']['Exclude'].split('||')
-            )
-        self.cachefolder = self.curr_path / 'cache'
-        
-        self.multithread_on = self.config.getboolean('DEFAULT', 'MultiThread')
-        
-    def print(self, s):
+        config = cp.ConfigParser()
+        config.read(config_path)
+
+        self._inputDir = config['DEFAULT']['InputDir']
+        self._outputDir = config['DEFAULT']['OutputDir']
+        self._cacheDir = config['DEFAULT']['CacheDir']
+        self._fileList = self._initPathObj(exclude=config['DEFAULT']['Exclude'].split('||'))
+
+    @property
+    def inputDir(self):
+        return self._inputDir
+
+    @property
+    def outputDir(self):
+        return self._outputDir
+
+    @property
+    def cacheDir(self):
+        return self._cacheDir
+
+    @property
+    def fileList(self):
+        return self._fileList
+
+    def print(self, s, overflow="fold"):
         if self.ui_active:
             self.logger.write(s)
         else:
-            self.console.print(s)
-        
-    def log(self, s: str):
-        self.print(f"[blue][{mutl.currTimeFormat()}][/] {s}")
-        
-    def repack(self, file_t):
+            self.console.print(s, overflow=overflow)
+
+    def log(self, s: str, overflow="fold"):
+        mtui.log(self.console, s, overflow=overflow)
+
+    def repack(self, file):
+        file_t = Path(file)
         comic_name: str = file_t.parents[0].name
         comic_src = self._loadZipImg(file_t)
-        if comic_name == self.curr_path.stem:
-            self._packFolder(comic_src, self.output_path)
+        if comic_name == Path(self.inputDir).stem:
+            self._packFolder(comic_src, Path(self.outputDir))
         else:
-            self._packFolder(comic_src, self.output_path / comic_name)
+            self._packFolder(comic_src, Path(self.outputDir) / comic_name)
 
     # 初始化路径并复制目录结构
     def _initPathObj(
-        self,
-        use_curr_as_input_dir: bool=True,
-        input_dir: str='',
-        create_output_folder_under_input_dir: bool=True,
-        output_dir: str='',
-        output_folder: str='output',
-        exclude: list[str]=[]
-        ) -> tuple:
-        curr_path = pathlib.Path(os.getcwd() if use_curr_as_input_dir else input_dir)
-        cachefolder = curr_path / 'cache'
-        mfst.removeIfExists(cachefolder)
-        curr_filelist: list = mfst.copyDirStructExtToList(str(curr_path))
-        self.log(f"[green]已完成文件列表抽取。")
-        output_path = curr_path / output_folder if create_output_folder_under_input_dir else pathlib.Path(output_dir)
-        mfst.removeIfExists(output_path)
-            
+            self,
+            exclude=None
+    ) -> list:
         # 目录表格绘制
-        path_table = Table(show_header=True, header_style='bold yellow')
-        path_table.add_column('目录类型')
-        path_table.add_column('目录路径')
-        path_table.add_row('[cyan]输入目录', str(curr_path))
-        path_table.add_row('[cyan]输出目录', str(output_path))
-        self.print(path_table)
-
-        mfst.copyDirStruct(str(curr_path), str(output_path), ifinclude=(curr_path in output_path.parents), exclude=exclude)
+        if exclude is None:
+            exclude = []
+        self.print(mtui.PathTable(
+            self.inputDir,
+            self.outputDir,
+            self.cacheDir
+        ))
+        # 文件列表抽取
+        mfst.removeIfExists(self.cacheDir)
+        mfst.removeIfExists(self.outputDir)
+        filelist: list = mfst.copyDirStructExtToList(self.inputDir)
+        self.log(f"[green]已完成文件列表抽取。")
+        # 目录结构复制
+        mfst.copyDirStruct(self.inputDir, self.outputDir, exclude=exclude)
         self.log(f"[green]已完成目录结构复制。")
-        return curr_path, output_path, curr_filelist
+        return filelist
 
     # HTML 按照 vol.opf 中规定的顺序抽取成列表
     # 本函数是为 Mox.moe 新发布的文件设计，但兼容老版本
     # 以解决新版本文件中网页顺序打乱导致图片顺序错乱问题
+    @staticmethod
+    def _htmlObjExtract(
+            curr_page: dict[str, Union[str, Any]],
+            extract_dir: Path,
+            length: int) -> tuple:
+        idx = curr_page['id'].replace('Page_', '')
+        file_stem = re.findall(r'[^/]+\.html', curr_page['href'])[0]
+        raw_path = extract_dir / 'html' / file_stem
+        if 'cover' == idx:
+            return 0, raw_path
+        elif idx.isnumeric():
+            return int(idx), raw_path
+        else:
+            # 'createby' == id
+            return length, raw_path
+
     def _htmlExtractToList(
-        self, 
-        extract_dir
-        ) -> list:
-        opf_file = extract_dir / 'vol.opf'
-        with opf_file.open('r', encoding='utf-8') as volopf:
-            soup_0 = BeautifulSoup(volopf.read(), features='xml')
-        raw_pages = soup_0.package.manifest.find_all('item', {'media-type': 'application/xhtml+xml'})
-        reduced_pages = []
-        for raw_pg in raw_pages:
-            raw_id = re.sub('Page_', '', raw_pg['id'])
-            raw_file_stem = re.findall(r'[^/]+\.html', raw_pg['href'])[0]
-            raw_path = extract_dir / 'html' / raw_file_stem        
-            if 'cover' == raw_id:
-                raw_id = 0
-            elif raw_id.isnumeric():
-                raw_id = int(raw_id)
-            else:
-                # 'createby' == raw_id
-                raw_id = len(raw_pages)
-            reduced_pages.append((raw_id, raw_path))
-        reduced_pages.sort(key=lambda x: x[0])
+            self,
+            extract_dir: Path,
+            soup: BeautifulSoup
+    ) -> list:
+        raw_pages = soup.package.manifest.find_all('item', {'media-type': 'application/xhtml+xml'})
+        reduced_pages = sorted(
+            map(lambda pg: self._htmlObjExtract(pg, extract_dir, len(raw_pages)), raw_pages),
+            key=lambda x: x[0]
+        )
         return list(zip(*reduced_pages))[1]
 
+    # 新的漫画名称抽取函数 20230528
+    @staticmethod
+    def _comicNameExtract(soup: BeautifulSoup) -> str:
+        author: str = soup.package.metadata.find('dc:creator').string
+        title, volume = soup.package.metadata.find('dc:title').string.split(' - ')
+        return f'[{author}][{title}]{volume}'
+
     # 单个压缩包根据HTML文件中的图片地址进行提取
-    def _loadZipImg(self, 
-        zip_file
-        ):
+    def _loadZipImg(self, zip_file) -> Path:
         self.log(f'[yellow]开始解析 {zip_file.stem}')
         # 避免相同文件名解压到缓存文件夹时冲突
-        extract_dir = self.cachefolder / str(zip_file.stem)
+        extract_dir = Path(self.cacheDir, str(zip_file.stem))
         while extract_dir.is_dir():
-            extract_dir = self.cachefolder / (str(zip_file.stem) + '_dup')
-        comic_name: str = mutl.comicNameExtract(zip_file)
-        self.log(f'{comic_name} => [yellow]开始提取')
+            extract_dir = Path(self.cacheDir, str(zip_file.stem) + '_dup')
         shutil.unpack_archive(str(zip_file), extract_dir=extract_dir, format="zip")
+        opf_file = extract_dir / 'vol.opf'
+        soup_0 = mutl.readXmlFile(opf_file)
+        comic_name: str = self._comicNameExtract(soup_0)
+        self.log(f'{comic_name} => [yellow]开始提取')
         img_dir = extract_dir / 'image'
-        html_list: list = self._htmlExtractToList(extract_dir)
+        html_list: list = self._htmlExtractToList(extract_dir, soup_0)
         for html_file in html_list:
-            with html_file.open('r', encoding='utf-8') as hf:
-                soup = BeautifulSoup(hf.read(), 'html.parser')
+            soup = mutl.readHtmlFile(html_file)
             title: str = soup.title.string
-            imgsrc = pathlib.Path(soup.img['src'])
+            imgsrc = Path(soup.img['src'])
             imgsrc = img_dir / imgsrc.name
             if 'cover' in imgsrc.name:
-                imgsrc = imgsrc.rename(pathlib.Path(imgsrc.parent, 'COVER' + imgsrc.suffix))
+                imgsrc.rename(Path(imgsrc.parent, 'COVER' + imgsrc.suffix))
             elif 'END' in title:
-                imgsrc = imgsrc.rename(pathlib.Path(imgsrc.parent, 'THE END' + imgsrc.suffix))
+                imgsrc.rename(Path(imgsrc.parent, 'THE END' + imgsrc.suffix))
             else:
                 page_num: str = re.search(r'\d+', title).group(0)
-                imgsrc = imgsrc.rename(pathlib.Path(imgsrc.parent, 'PAGE {:03}'.format(int(page_num)) + imgsrc.suffix))
-        img_dir = img_dir.rename(pathlib.Path(img_dir.parent, comic_name))
+                imgsrc.rename(Path(imgsrc.parent, 'PAGE {:03}'.format(int(page_num)) + imgsrc.suffix))
+        img_dir = img_dir.rename(Path(img_dir.parent, comic_name))
         img_filelist = mfst.copyDirStructToList(str(img_dir))
-        for imgfile in img_filelist:
+        for file in img_filelist:
+            imgfile = Path(file)
             imgstem = imgfile.stem
             if all(s not in imgstem for s in ['COVER', 'END', 'PAGE']):
                 imgfile.unlink()
@@ -145,15 +169,15 @@ class Repacker:
     # 修改输出路径为绝对路径，避免多次切换工作目录 20230429
     @retry.retry(Exception, tries=5, delay=0.5)
     def _packFolder(
-        self, 
-        inDir: str, 
-        outDir: str, 
-        ext: str='.cbz'
-        ):
+            self,
+            inDir: Path,
+            outDir: Path,
+            ext: str = '.cbz'
+    ) -> Path:
         comic_name: str = inDir.name
         self.log(f'{comic_name} => [yellow]开始打包')
         shutil.make_archive(os.path.join(outDir, comic_name), format='zip', root_dir=inDir)
-        zip_path = pathlib.Path(outDir, comic_name + '.zip')
+        zip_path = Path(outDir, comic_name + '.zip')
         cbz_path = zip_path.rename(zip_path.with_suffix(ext))
         self.log(f'{comic_name} => [green]打包完成')
         return cbz_path

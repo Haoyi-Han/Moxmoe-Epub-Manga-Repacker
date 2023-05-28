@@ -1,5 +1,7 @@
-beautifulsoup4==4.12.2
-comtypes==1.1.14
-pywin32==305.1
-rich==13.3.4
-win32gui==221.6
+rich~=13.3.5
+configparser~=5.3.0
+retry~=0.9.2
+beautifulsoup4~=4.12.2
+comtypes~=1.1.14
+pywin32~=305.1
+win32gui~=221.6
