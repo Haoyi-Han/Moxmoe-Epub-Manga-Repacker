@@ -26,7 +26,7 @@ class Repacker:
     def initFromConfig(self, config_path: str):
         self.log(f'[yellow]开始初始化程序...')
         config = cp.ConfigParser()
-        config.read(config_path)
+        config.read(config_path, encoding='utf-8')
 
         self._inputDir = config['DEFAULT']['InputDir']
         self._outputDir = config['DEFAULT']['OutputDir']
