@@ -38,3 +38,15 @@ def readHtmlFile(html_file: Path):
     with html_file.open('r', encoding='utf-8') as hf:
         soup_0 = BeautifulSoup(hf.read(), 'html.parser')
         return soup_0
+
+
+# 检查文件名是否合法，并处理其中的非法字符 20230630
+def sanitizeFileName(filename: str) -> str:
+    invalid_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|']
+    replacement_dict = {'/': '／', '\\': '＼', ':': '：', '*': '＊', '?': '？', '"': '＂', '<': '＜', '>': '＞', '|': '｜'}
+
+    for char in invalid_chars:
+        if char in filename:
+            filename = filename.replace(char, replacement_dict.get(char, ''))
+
+    return filename
