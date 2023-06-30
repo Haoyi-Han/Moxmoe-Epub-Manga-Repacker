@@ -126,7 +126,8 @@ class Repacker:
     def _comicNameExtract(soup: BeautifulSoup) -> str:
         author: str = soup.package.metadata.find('dc:creator').string
         title, volume = soup.package.metadata.find('dc:title').string.split(' - ')
-        return f'[{author}][{title}]{volume}'
+        filename = mutl.sanitizeFileName(f'[{author}][{title}]{volume}')
+        return filename
 
     # 单个压缩包根据HTML文件中的图片地址进行提取
     def _loadZipImg(self, zip_file) -> Path:
