@@ -46,9 +46,8 @@ def removeIfExists(path: str):
     if Path(path).is_dir():
         shutil.rmtree(os.fspath(path), ignore_errors=True)
 
-    # shutil.make_archive() 不是线程安全的，因此考虑用以下函数代替
 
-
+# shutil.make_archive() 不是线程安全的，因此考虑用以下函数代替
 # https://stackoverflow.com/questions/41625702/is-shutil-make-archive-thread-safe
 def make_archive_threadsafe(zip_name: str, path: str):
     with zipfile.ZipFile(zip_name, 'w', zipfile.ZIP_DEFLATED) as zip_f:

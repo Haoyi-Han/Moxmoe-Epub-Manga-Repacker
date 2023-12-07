@@ -1,9 +1,11 @@
 import importlib
 import platform
 import time
+from functools import wraps
 
 
 def on_windows(func):
+    @wraps(func)
     def wrapper(*args, **kwargs):
         if platform.system() == 'Windows':
             return func(*args, **kwargs)

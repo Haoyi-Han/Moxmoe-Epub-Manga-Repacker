@@ -35,7 +35,7 @@ def keyboardHandler(signum, frame):
         win_tb.resetTaskbarProgress()
 
         # 选择是否保留已转换文件和缓存文件夹
-        console.print(f'[yellow]您手动中断了程序。')
+        console.print('[yellow]您手动中断了程序。')
         resp_out = Prompt.ask("请选择是否保留已转换文件", choices=["y", "n"], default="y")
         resp_cache = Prompt.ask("请选择是否保留缓存文件夹", choices=["y", "n"], default="n")
         # 除打包阶段使用的当前电子书文件外，其他文件均可清除
@@ -67,10 +67,10 @@ def main():
     console.print(mtui.welcome_panel)
 
     # 初始化转换器对象
-    repacker.initFromConfig('./config.conf')
+    repacker.initFromConfig('./config.toml')
 
     # 采用 rich.progress 实现进度条效果
-    mtui.log(console, f'[yellow]开始提取图片并打包文件...')
+    mtui.log(console, '[yellow]开始提取图片并打包文件...')
     pb.start()
     total = len(repacker.fileList)
     task = pb.add_task(description='Kox.moe', total=total)
@@ -87,11 +87,11 @@ def main():
     pb.stop()
     win_tb.resetTaskbarProgress()
 
-    mtui.log(console, f'[yellow]开始清理缓存文件...')
+    mtui.log(console, '[yellow]开始清理缓存文件...')
     os.chdir(repacker.outputDir)  # 防止进程占用缓存文件夹 20230429
     mfst.removeIfExists(repacker.cacheDir)
 
-    mtui.log(console, f'[green]所有转换任务完成！')
+    mtui.log(console, '[green]所有转换任务完成！')
 
 
 if __name__ == '__main__':
