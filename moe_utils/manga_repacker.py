@@ -11,6 +11,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, stop_af
 import moe_utils.file_system as mfst
 import moe_utils.terminal_ui as mtui
 import moe_utils.utils as mutl
+import moe_utils.comic_info as mcif
 
 
 class Repacker:
@@ -127,7 +128,7 @@ class Repacker:
         )
         return list(zip(*reduced_pages))[1]
 
-    # 新的漫画名称抽取函数 20230528
+    # 新的漫画名称抽取函数 20230528 函数已弃用 20231211
     @staticmethod
     def _comicNameExtract(soup: BeautifulSoup) -> str:
         author: str = soup.package.metadata.find('dc:creator').string
@@ -178,7 +179,7 @@ class Repacker:
         shutil.unpack_archive(str(zip_file), extract_dir=extract_dir, format="zip")
         opf_file = extract_dir / 'vol.opf'
         soup_0 = mutl.readXmlFile(opf_file)
-        comic_name: str = self._comicNameExtract(soup_0)
+        comic_name: str = mcif.ComicInfoExtractor(opf_file).comic_file_name
         self.log(f'{comic_name} => [yellow]开始提取')
         
         img_dir = extract_dir / 'image'
