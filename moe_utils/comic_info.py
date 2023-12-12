@@ -1,5 +1,6 @@
 import re
 from pathlib import Path
+from typing import Iterable
 
 from lxml import etree
 
@@ -127,6 +128,10 @@ class ComicInfo:
             root, pretty_print=True, xml_declaration=True, encoding="utf-8"
         )
 
+    def to_xml_file(self, output: Path) -> None:
+        with output.open("w", encoding="utf-8") as of:
+            of.write(self.to_xml().decode("utf-8"))
+
     def _build_xml(self, parent: etree.Element, data: dict):
         for key, value in data.items():
             if isinstance(value, dict):
@@ -167,10 +172,10 @@ class ComicInfoExtractor:
         self._comic_data["Publisher"] = "Kox.moe"
         self._comic_data["Manga"] = "Yes"
 
-        self.build_mox_book()
-        self.build_comic_info()
+        self._build_mox_book()
+        self._build_comic_info()
 
-    def build_mox_book(self):
+    def _build_mox_book(self):
         moxbid = self._package.xpath(
             './/dc:identifier[@id="MOXBID"]', namespaces=self.ns
         )[0].text
@@ -184,7 +189,7 @@ class ComicInfoExtractor:
         self._comic_data["Count"] = self.mox_book.count
         self._comic_data["Web"] = self.mox_book.weburl
 
-    def build_comic_info(self):
+    def _build_comic_info(self):
         self._comic_data["Series"] = self._package.xpath(
             ".//dc:series", namespaces=self.ns
         )[0].text
@@ -217,3 +222,78 @@ class ComicInfoExtractor:
         series = self._comic_data["Series"]
         volume = self._comic_data["Volume"]
         return mutl.sanitizeFileName(f"[{author}][{series}]{volume}")
+
+    @property
+    def comic_page_count(self) -> int:
+        return self._comic_data["PageCount"]
+
+    def _build_filelist(self, xpath: str) -> Iterable[tuple[str, str]]:
+        # 返回一个迭代器，元素格式为元组 (id, href)
+        return map(
+            lambda x: (x.attrib["id"], x.attrib["href"]),
+            self._package.xpath(
+                xpath,
+                namespaces=self.ns,
+            ),
+        )
+
+    def _build_html_filelist(self, extract_dir: Path) -> Iterable[tuple[str, Path]]:
+        file_list = self._build_filelist(
+            xpath='.//opf:manifest/opf:item[@media-type="application/xhtml+xml"]'
+        )
+        return map(lambda x: (x[0], extract_dir / x[1]), file_list)
+
+    def _build_img_filelist(self, extract_dir: Path) -> Iterable[tuple[str, Path]]:
+        # 实际上 PNG 图片仅有版权页和备用封面页，保留相关 xpath 供查询调试
+        file_list = self._build_filelist(
+            xpath='.//opf:manifest/opf:item[@media-type="image/jpeg"]'
+            # xpath='.//opf:manifest/opf:item[@media-type="image/jpeg"] | .//opf:manifest/opf:item[@media-type="image/png"]'
+        )
+        return map(lambda x: (x[0], extract_dir / x[1]), file_list)
+
+    def build_img_filelist(
+        self, extract_dir: Path, direct: bool = False
+    ) -> Iterable[tuple[str, Path]]:
+        # 提供两种方式：间接从网页内容获取图片地址，以及直接从 vol.opf 文件获取图片地址
+        # 设置两种方式主要是防止其中一种顺序出现错误，但暂不提供接口
+        # 但是直接获取图片并不能保证其顺序正确，因此还是使用网页列表对图片排序
+        img_list = []
+
+        def _rename_idx(idx: str, length: int) -> int:
+            if idx.isnumeric():
+                return int(idx)
+            elif idx == "cover":
+                return 0
+            else:
+                return length
+
+        def _rename_img_idx(renamed_idx: int) -> str:
+            if renamed_idx == 0:
+                return "COVER"
+            else:
+                return f"PAGE{renamed_idx:03}"
+
+        def _extract_img_from_html(html_path: Path) -> Path:
+            with html_path.open("r", encoding="utf-8") as hf:
+                html_text = hf.read()
+                html_tree: etree.Element = etree.HTML(html_text)
+                return (
+                    extract_dir / html_tree.xpath(".//img[@src]")[0].attrib["src"][3:]
+                )
+
+        if not direct:
+            for html_title, html_path in self._build_html_filelist(extract_dir):
+                idx: str = html_title.replace("Page_", "")
+                renamed_idx: int = _rename_idx(idx, self.comic_page_count)
+                new_name = _rename_img_idx(renamed_idx)
+                img_src = _extract_img_from_html(html_path)
+                img_list.append((new_name, img_src))
+        else:
+            # 以下如非调试不考虑正式使用
+            for img_title, img_path in self._build_img_filelist(extract_dir):
+                idx: str = img_title.replace("img", "").replace("_", "")
+                renamed_idx = _rename_idx(idx, self.comic_page_count)
+                new_name = _rename_img_idx(renamed_idx)
+                img_list.append((new_name, img_path))
+
+        return img_list

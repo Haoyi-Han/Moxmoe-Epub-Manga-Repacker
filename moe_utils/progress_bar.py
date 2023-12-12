@@ -1,5 +1,7 @@
-from rich.progress import Progress, Task, Text, ProgressColumn, TextColumn, BarColumn, MofNCompleteColumn, \
+from rich.progress import Progress, Task, ProgressColumn, TextColumn, BarColumn, MofNCompleteColumn, \
     SpinnerColumn, TimeElapsedColumn, TimeRemainingColumn
+
+from rich.text import Text
 
 
 # 进度条外观设计
