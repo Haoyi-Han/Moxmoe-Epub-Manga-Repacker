@@ -1,9 +1,11 @@
 import importlib
 import platform
 import time
+from functools import wraps
 
 
 def on_windows(func):
+    @wraps(func)
     def wrapper(*args, **kwargs):
         if platform.system() == 'Windows':
             return func(*args, **kwargs)
@@ -47,10 +49,10 @@ class WinTaskbar:
         return taskbar, hWnd
 
     @on_windows
-    def setTaskbarProgress(self, i, total):
+    def set_taskbar_progress(self, i, total):
         self.taskbar.SetProgressValue(self.hWnd, i, total)
         self.taskbar.SetProgressState(self.hWnd, 0x2)
 
     @on_windows
-    def resetTaskbarProgress(self):
+    def reset_taskbar_progress(self):
         self.taskbar.SetProgressState(self.hWnd, 0x0)

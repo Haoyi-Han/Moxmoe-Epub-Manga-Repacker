@@ -1,0 +1,5 @@
+[DEFAULT]
+InputDir =  "D:/Work/Dev/Moxmoe/Release/input"
+OutputDir = "D:/Work/Dev/Moxmoe/Release/output"
+CacheDir =  "D:/Work/Dev/Moxmoe/Release/input/cache"
+Exclude = [".vscode", ".idea", "venv", "test", "moe_utils", "img", "build"]
