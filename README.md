@@ -2,7 +2,7 @@
 
 ![](https://img.shields.io/badge/python-v3.10-orange) ![](https://img.shields.io/github/license/Haoyi-Han/Moxmoe-Epub-Manga-Repacker)
 
-[English](./README.md) | 中文
+English | [中文](./README_ZH.md)
 
 ## Declaration
 
