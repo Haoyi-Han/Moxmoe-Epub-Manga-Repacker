@@ -3,6 +3,8 @@ import os
 import shutil
 from pathlib import Path
 
+from rich.console import Console
+
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -16,13 +18,13 @@ import moe_utils.comic_info as mcif
 
 
 class IRepacker:
-    def __init__(self, console):
+    def __init__(self, console: Console):
         self.console = console
 
-    def print(self, s, overflow="fold"):
+    def print(self, s, overflow: str = "fold"):
         self.console.print(s, overflow=overflow)
 
-    def log(self, s: str, overflow="fold"):
+    def log(self, s: str, overflow: str = "fold"):
         mtui.log(self.console, s, overflow=overflow)
 
 
@@ -30,7 +32,7 @@ class Repacker(IRepacker):
     _input_dir: str = ""
     _output_dir: str = ""
     _cache_dir: str = ""
-    _filelist: list
+    _filelist: list[Path]
 
     def __init__(self, console):
         super().__init__(console)
@@ -61,7 +63,7 @@ class Repacker(IRepacker):
         return self._cache_dir
 
     @property
-    def filelist(self) -> list:
+    def filelist(self) -> list[Path]:
         return self._filelist
 
     def repack(self, file):
@@ -74,7 +76,7 @@ class Repacker(IRepacker):
         single_repacker.pack_folder(real_output_dir)
 
     # 初始化路径并复制目录结构
-    def _init_path_obj(self, exclude=None) -> list:
+    def _init_path_obj(self, exclude=None) -> list[Path]:
         # 目录表格绘制
         if exclude is None:
             exclude = []
@@ -82,7 +84,7 @@ class Repacker(IRepacker):
         # 文件列表抽取
         mfst.remove_if_exists(self.cache_dir)
         mfst.remove_if_exists(self.output_dir)
-        filelist: list = mfst.copy_dir_struct_ext_to_list(self.input_dir)
+        filelist: list[Path] = mfst.copy_dir_struct_ext_to_list(self.input_dir)
         self.log("[green]已完成文件列表抽取。")
         # 目录结构复制
         mfst.copy_dir_struct(self.input_dir, self.output_dir, exclude=exclude)
@@ -139,8 +141,7 @@ class SingleRepacker(IRepacker):
     def _organize_images(self, img_dir: Path, comic_name: str) -> Path:
         img_dir = img_dir.rename(Path(img_dir.parent, comic_name))
         img_filelist = mfst.copy_dir_struct_to_list(str(img_dir))
-        for file in img_filelist:
-            imgfile = Path(file)
+        for imgfile in img_filelist:
             imgstem = imgfile.stem
             if all(s not in imgstem for s in ["COVER", "END", "PAGE"]):
                 imgfile.unlink()

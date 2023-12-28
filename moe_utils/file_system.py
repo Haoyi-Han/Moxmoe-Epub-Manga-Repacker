@@ -20,30 +20,28 @@ def copy_dir_struct(inPath: str, outPath: str, exclude=None):
 
 
 # 创建文件列表（按原目录结构）
-def copy_dir_struct_to_list(root: str) -> list:
-    # return [pathlib.Path(os.path.join(path, name)) for path, subdirs, files in os.walk(root) for name in files]
+def copy_dir_struct_to_list(root: str) -> list[Path]:
     return [
-        os.path.join(path, name)
+        Path(path, name)
         for path, subdirs, files in os.walk(root)
         for name in files
     ]
 
 
 # 创建EPUB文件列表（按原目录结构）
-def copy_dir_struct_ext_to_list(root: str, ext=".epub") -> list:
-    filelist: list = copy_dir_struct_to_list(root)
+def copy_dir_struct_ext_to_list(root: str, ext=".epub") -> list[Path]:
+    filelist: list[Path] = copy_dir_struct_to_list(root)
     return [
         p
         for p in filelist
-        if (not Path(p).stem.startswith("._")) and (Path(p).suffix == ext)
+        if (not p.stem.startswith("._")) and (p.suffix == ext)
     ]
 
 
 # 修改EPUB扩展名为ZIP
 # 调整shutil.unpack_archive()参数后，解压不再需要依赖扩展名，本函数弃用
-def suffix_change(filelist: list, inType: str = ".epub", outType: str = ".zip") -> list:
-    for i in range(len(filelist)):
-        filepath = filelist[i]
+def suffix_change(filelist: list[Path], inType: str = ".epub", outType: str = ".zip") -> list:
+    for i, filepath in enumerate(filelist):
         if filepath.suffix == inType:
             filepath = filepath.rename(filepath.with_suffix(outType))
         filelist[i] = filepath
