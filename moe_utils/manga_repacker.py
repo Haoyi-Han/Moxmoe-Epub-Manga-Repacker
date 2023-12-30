@@ -2,6 +2,7 @@ import tomllib
 import os
 import shutil
 from pathlib import Path
+from argparse import Namespace
 
 from rich.console import Console
 
@@ -29,13 +30,29 @@ class IRepacker:
 
 
 class Repacker(IRepacker):
-    _input_dir: str = ""
-    _output_dir: str = ""
-    _cache_dir: str = ""
-    _filelist: list[Path]
+    _input_dir: Path
+    _output_dir: Path
+    _cache_dir: Path
+    _exclude_list: list[str] = []
+    _filelist: list[Path] = []
 
     def __init__(self, console):
         super().__init__(console)
+
+    def init_data(self, config_path: str, args: Namespace):
+        self.init_from_config(config_path)
+        self.init_from_arguments(args.input_dir, args.output_dir, args.cache_dir)
+        self.init_filelist()
+
+    def init_from_arguments(
+        self, input_dir: str | None, output_dir: str | None, cache_dir: str | None
+    ):
+        if input_dir is not None:
+            self._input_dir = Path(input_dir)
+        if output_dir is not None:
+            self._output_dir = Path(output_dir)
+        if cache_dir is not None:
+            self._cache_dir = Path(cache_dir)
 
     def init_from_config(self, config_path: str):
         self.log("[yellow]开始初始化程序...")
@@ -45,22 +62,25 @@ class Repacker(IRepacker):
         with config_file.open("rb") as cf:
             config = tomllib.load(cf)
 
-        self._input_dir = config["DEFAULT"]["InputDir"]
-        self._output_dir = config["DEFAULT"]["OutputDir"]
-        self._cache_dir = config["DEFAULT"]["CacheDir"]
-        self._filelist = self._init_path_obj(exclude=config["DEFAULT"]["Exclude"])
+        self._input_dir = Path(config["DEFAULT"]["InputDir"])
+        self._output_dir = Path(config["DEFAULT"]["OutputDir"])
+        self._cache_dir = Path(config["DEFAULT"]["CacheDir"])
+        self._exclude_list = config["DEFAULT"]["Exclude"]
+
+    def init_filelist(self):
+        self._filelist = self._init_path_obj(exclude=self._exclude_list)
 
     @property
     def input_dir(self) -> str:
-        return self._input_dir
+        return str(self._input_dir)
 
     @property
     def output_dir(self) -> str:
-        return self._output_dir
+        return str(self._output_dir)
 
     @property
     def cache_dir(self) -> str:
-        return self._cache_dir
+        return str(self._cache_dir)
 
     @property
     def filelist(self) -> list[Path]:
@@ -69,7 +89,7 @@ class Repacker(IRepacker):
     def repack(self, file):
         file_t = Path(file)
         comic_name: str = file_t.parents[0].name
-        single_repacker = SingleRepacker(self.cache_dir, file_t, self.console)
+        single_repacker = SingleRepacker(self._cache_dir, file_t, self.console)
         real_output_dir = Path(self.output_dir)
         if comic_name != Path(self.input_dir).stem:
             real_output_dir = real_output_dir / comic_name
@@ -93,14 +113,14 @@ class Repacker(IRepacker):
 
 
 class SingleRepacker(IRepacker):
-    _cache_dir: str = ""
+    _cache_dir: Path
     _zip_file: Path
     _extract_dir: Path
     _pack_from_dir: Path
     _extractor: mcif.ComicInfoExtractor
     _comic_name: str
 
-    def __init__(self, cache_dir: str, zip_file: Path, console):
+    def __init__(self, cache_dir: Path, zip_file: Path, console):
         super().__init__(console)
         self._cache_dir = cache_dir
         self._zip_file = zip_file
@@ -109,7 +129,7 @@ class SingleRepacker(IRepacker):
         self._pack_from_dir = self._load_zip_img()
 
     @property
-    def cache_dir(self) -> str:
+    def cache_dir(self) -> Path:
         return self._cache_dir
 
     @property
@@ -122,9 +142,9 @@ class SingleRepacker(IRepacker):
 
     # 避免相同文件名解压到缓存文件夹时冲突
     def _set_unique_extract_dir(self) -> None:
-        self._extract_dir = Path(self.cache_dir, str(self._zip_file.stem))
+        self._extract_dir = self.cache_dir / str(self._zip_file.stem)
         while self._extract_dir.is_dir():
-            self._extract_dir = Path(self.cache_dir, str(self._zip_file.stem) + "_dup")
+            self._extract_dir = self.cache_dir / (str(self._zip_file.stem) + "_dup")
 
     def _analyse_archive(self) -> None:
         shutil.unpack_archive(

@@ -3,6 +3,7 @@ import os
 from pathlib import Path
 from contextlib import AbstractContextManager
 from types import TracebackType
+from argparse import ArgumentParser, Namespace, RawTextHelpFormatter
 
 # 程序显示引用库
 from rich.prompt import Prompt
@@ -29,6 +30,7 @@ repacker = mmrp.Repacker(console=console)
 
 # 全局初始化 Windows 任务栏对象 20230521
 win_tb = mtbi.WinTaskbar()
+
 
 # 使用上下文管理器进行封装 20231228
 class ProgressController(AbstractContextManager):
@@ -107,11 +109,34 @@ def main():
     signal.signal(signal.SIGINT, keyboard_handler)
     signal.signal(signal.SIGTERM, keyboard_handler)
 
+    # 命令行参数列表 20231230
+    parser = ArgumentParser(description=mtui.welcome_logo, formatter_class=RawTextHelpFormatter)
+    parser.add_argument(
+        "-if", "--input-dir", type=str, default=None, help="Input Directory Path"
+    )
+    parser.add_argument(
+        "-of", "--output-dir", type=str, default=None, help="Output Directory Path"
+    )
+    parser.add_argument(
+        "-cc", "--cache-dir", type=str, default=None, help="Cache Directory Path"
+    )
+    parser.add_argument(
+        "-cl", "--clean-all", action="store_true", help="Clean Output and Cache files"
+    )
+    args: Namespace = parser.parse_args()
+    
     # 欢迎界面
     console.print(mtui.welcome_panel)
 
     # 初始化转换器对象
-    repacker.init_from_config("./config.toml")
+    repacker.init_data(config_path="./config.toml", args=args)
+
+    # 若存在参数 cl，则运行清理命令并退出 20231230
+    if args.clean_all:
+        mfst.remove_if_exists(repacker.output_dir)
+        os.mkdir(repacker.output_dir)
+        mfst.remove_if_exists(repacker.cache_dir)
+        return
 
     # 采用 rich.progress 实现进度条效果
     mtui.log(console, "[yellow]开始提取图片并打包文件...")
