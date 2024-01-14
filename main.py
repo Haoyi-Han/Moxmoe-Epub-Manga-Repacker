@@ -29,21 +29,25 @@ console = pb.console
 repacker = mmrp.Repacker(console=console)
 
 # 全局初始化 Windows 任务栏对象 20230521
-win_tb = mtbi.WinTaskbar()
+win_tb: mtbi.WinTaskbar | None = None
 
 
 # 使用上下文管理器进行封装 20231228
 class ProgressController(AbstractContextManager):
     pb: Progress
-    tb: mtbi.WinTaskbar
+    tb: mtbi.WinTaskbar | None = None
+    tb_imported: bool = False
     description: str
     total: int
     task: TaskID
 
-    def __init__(self, pb: Progress, tb: mtbi.WinTaskbar, description: str, total: int):
+    def __init__(
+        self, pb: Progress, tb: mtbi.WinTaskbar | None, description: str, total: int
+    ):
         super().__init__()
         self.pb = pb
         self.tb = tb
+        self.tb_imported = isinstance(tb, mtbi.WinTaskbar)
         self.description = description
         self.total = total
 
@@ -59,12 +63,14 @@ class ProgressController(AbstractContextManager):
         __traceback: TracebackType | None,
     ) -> bool | None:
         self.pb.stop()
-        self.tb.reset_taskbar_progress()
+        if self.tb_imported:
+            self.tb.reset_taskbar_progress()
         return super().__exit__(__exc_type, __exc_value, __traceback)
 
     def update(self, i: int):
-        self.tb.set_taskbar_progress(i, self.total)
         self.pb.update(self.task, advance=1)
+        if self.tb_imported:
+            self.tb.set_taskbar_progress(i, self.total)
 
 
 # 键盘Ctrl+C中断命令优化
@@ -73,7 +79,8 @@ def keyboard_handler(signum, frame):
         # 重置进度条
         global repacker, console, win_tb, pb
         pb.stop()
-        win_tb.reset_taskbar_progress()
+        if win_tb is not None:
+            win_tb.reset_taskbar_progress()
 
         # 选择是否保留已转换文件和缓存文件夹
         console.print("[yellow]您手动中断了程序。")
@@ -110,7 +117,9 @@ def main():
     signal.signal(signal.SIGTERM, keyboard_handler)
 
     # 命令行参数列表 20231230
-    parser = ArgumentParser(description=mtui.welcome_logo, formatter_class=RawTextHelpFormatter)
+    parser = ArgumentParser(
+        description=mtui.welcome_logo, formatter_class=RawTextHelpFormatter
+    )
     parser.add_argument(
         "-if", "--input-dir", type=str, default=None, help="Input Directory Path"
     )
@@ -123,20 +132,35 @@ def main():
     parser.add_argument(
         "-cl", "--clean-all", action="store_true", help="Clean Output and Cache files"
     )
+    parser.add_argument(
+        "-nt",
+        "--no-taskbar",
+        action="store_true",
+        help="Disable Taskbar Progress Display",
+    )
+    parser.add_argument("-nl", "--no-logo", action="store_true", help="Disable Logo")
     args: Namespace = parser.parse_args()
-    
+
     # 欢迎界面
-    console.print(mtui.welcome_panel)
+    if not args.no_logo:
+        console.print(mtui.welcome_panel)
 
     # 初始化转换器对象
     repacker.init_data(config_path="./config.toml", args=args)
 
     # 若存在参数 cl，则运行清理命令并退出 20231230
     if args.clean_all:
+        mtui.log(console, "[yellow]开始清理输出文件...")
         mfst.remove_if_exists(repacker.output_dir)
         os.mkdir(repacker.output_dir)
+        mtui.log(console, "[yellow]开始清理缓存文件...")
         mfst.remove_if_exists(repacker.cache_dir)
         return
+
+    # 若存在参数 nt，则不加载任务栏进度条
+    win_tb = None
+    if not args.no_taskbar:
+        win_tb = mtbi.create_wintaskbar_object()
 
     # 采用 rich.progress 实现进度条效果
     mtui.log(console, "[yellow]开始提取图片并打包文件...")
