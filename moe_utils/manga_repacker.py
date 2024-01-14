@@ -2,6 +2,10 @@ import tomllib
 import os
 import shutil
 from pathlib import Path
+from argparse import Namespace
+from typing import NamedTuple
+
+from rich.console import Console
 
 from tenacity import (
     retry,
@@ -15,25 +19,74 @@ import moe_utils.terminal_ui as mtui
 import moe_utils.comic_info as mcif
 
 
+class InitValidityChecker(NamedTuple):
+    flag: bool
+    name: str
+
+
+class InvalidPathStringException(Exception):
+    path_type: str
+    message: str
+    
+    def __init__(self, path_type: str, message: str = "路径不合法、被占用或无权限，请检查配置文件或参数。"):
+        self.path_type = path_type
+        self.message = path_type + message
+        super().__init__(self.message)
+
+
 class IRepacker:
-    def __init__(self, console):
+    def __init__(self, console: Console):
         self.console = console
 
-    def print(self, s, overflow="fold"):
+    def print(self, s, overflow: str = "fold"):
         self.console.print(s, overflow=overflow)
 
-    def log(self, s: str, overflow="fold"):
+    def log(self, s: str, overflow: str = "fold"):
         mtui.log(self.console, s, overflow=overflow)
 
 
 class Repacker(IRepacker):
-    _input_dir: str = ""
-    _output_dir: str = ""
-    _cache_dir: str = ""
-    _filelist: list
+    _input_dir: Path | None = None
+    _output_dir: Path | None = None
+    _cache_dir: Path | None = None
+    _exclude_list: list[str] = []
+    _filelist: list[Path] = []
 
     def __init__(self, console):
         super().__init__(console)
+
+    def init_data(self, config_path: str, args: Namespace):
+        try:
+            self.init_from_config(config_path)
+            self.init_from_arguments(args.input_dir, args.output_dir, args.cache_dir)
+
+            checked: InitValidityChecker = self.check_init_validity()
+            if checked.flag is False:
+                raise InvalidPathStringException(path_type=checked.name)
+
+            self.init_filelist()
+
+        except InvalidPathStringException:
+            ...
+
+    def init_from_arguments(
+        self, input_dir: str | None, output_dir: str | None, cache_dir: str | None
+    ):
+        input_dir_obj: Path | None = mfst.check_if_path_string_valid(
+            input_dir, check_only=True, force_create=False
+        )
+        output_dir_obj: Path | None = mfst.check_if_path_string_valid(
+            output_dir, check_only=False, force_create=False
+        )
+        cache_dir_obj: Path | None = mfst.check_if_path_string_valid(
+            cache_dir, check_only=False, force_create=True
+        )
+        if input_dir_obj is not None:
+            self._input_dir = input_dir_obj
+        if output_dir_obj is not None:
+            self._output_dir = output_dir_obj
+        if cache_dir_obj is not None:
+            self._cache_dir = cache_dir_obj
 
     def init_from_config(self, config_path: str):
         self.log("[yellow]开始初始化程序...")
@@ -43,38 +96,59 @@ class Repacker(IRepacker):
         with config_file.open("rb") as cf:
             config = tomllib.load(cf)
 
-        self._input_dir = config["DEFAULT"]["InputDir"]
-        self._output_dir = config["DEFAULT"]["OutputDir"]
-        self._cache_dir = config["DEFAULT"]["CacheDir"]
-        self._filelist = self._init_path_obj(exclude=config["DEFAULT"]["Exclude"])
+        input_dir_obj: Path | None = mfst.check_if_path_string_valid(
+            config["DEFAULT"]["InputDir"], check_only=True, force_create=False
+        )
+        output_dir_obj: Path | None = mfst.check_if_path_string_valid(
+            config["DEFAULT"]["OutputDir"], check_only=False, force_create=False
+        )
+        cache_dir_obj: Path | None = mfst.check_if_path_string_valid(
+            config["DEFAULT"]["CacheDir"], check_only=False, force_create=True
+        )
+
+        self._input_dir = input_dir_obj
+        self._output_dir = output_dir_obj
+        self._cache_dir = cache_dir_obj
+        self._exclude_list = config["DEFAULT"]["Exclude"]
+
+    def check_init_validity(self) -> InitValidityChecker:
+        if self._input_dir is None:
+            return InitValidityChecker(flag=False, name="输入目录")
+        if self._output_dir is None:
+            return InitValidityChecker(flag=False, name="输出目录")
+        if self._cache_dir is None:
+            return InitValidityChecker(flag=False, name="缓存目录")
+        return InitValidityChecker(flag=True, name="")
+
+    def init_filelist(self):
+        self._filelist = self._init_path_obj(exclude=self._exclude_list)
 
     @property
     def input_dir(self) -> str:
-        return self._input_dir
+        return str(self._input_dir)
 
     @property
     def output_dir(self) -> str:
-        return self._output_dir
+        return str(self._output_dir)
 
     @property
     def cache_dir(self) -> str:
-        return self._cache_dir
+        return str(self._cache_dir)
 
     @property
-    def filelist(self) -> list:
+    def filelist(self) -> list[Path]:
         return self._filelist
 
-    def repack(self, file):
-        file_t = Path(file)
+    def repack(self, file_t: Path):
         comic_name: str = file_t.parents[0].name
-        single_repacker = SingleRepacker(self.cache_dir, file_t, self.console)
-        real_output_dir = Path(self.output_dir)
-        if comic_name != Path(self.input_dir).stem:
+        single_repacker = SingleRepacker(self._cache_dir, file_t, self.console)
+        real_output_dir: Path = self._output_dir
+        if comic_name != self._input_dir.stem:
             real_output_dir = real_output_dir / comic_name
         single_repacker.pack_folder(real_output_dir)
 
     # 初始化路径并复制目录结构
-    def _init_path_obj(self, exclude=None) -> list:
+    def _init_path_obj(self, exclude=None) -> list[Path]:
         # 目录表格绘制
         if exclude is None:
             exclude = []
@@ -82,7 +156,7 @@ class Repacker(IRepacker):
         # 文件列表抽取
         mfst.remove_if_exists(self.cache_dir)
         mfst.remove_if_exists(self.output_dir)
-        filelist: list = mfst.copy_dir_struct_ext_to_list(self.input_dir)
+        filelist: list[Path] = mfst.copy_dir_struct_ext_to_list(self.input_dir)
         self.log("[green]已完成文件列表抽取。")
         # 目录结构复制
         mfst.copy_dir_struct(self.input_dir, self.output_dir, exclude=exclude)
@@ -91,14 +165,14 @@ class Repacker(IRepacker):
 
 
 class SingleRepacker(IRepacker):
-    _cache_dir: str = ""
+    _cache_dir: Path
     _zip_file: Path
     _extract_dir: Path
     _pack_from_dir: Path
     _extractor: mcif.ComicInfoExtractor
     _comic_name: str
 
-    def __init__(self, cache_dir: str, zip_file: Path, console):
+    def __init__(self, cache_dir: Path, zip_file: Path, console):
         super().__init__(console)
         self._cache_dir = cache_dir
         self._zip_file = zip_file
@@ -107,7 +181,7 @@ class SingleRepacker(IRepacker):
         self._pack_from_dir = self._load_zip_img()
 
     @property
-    def cache_dir(self) -> str:
+    def cache_dir(self) -> Path:
         return self._cache_dir
 
     @property
@@ -120,9 +194,9 @@ class SingleRepacker(IRepacker):
 
     # 避免相同文件名解压到缓存文件夹时冲突
     def _set_unique_extract_dir(self) -> None:
-        self._extract_dir = Path(self.cache_dir, str(self._zip_file.stem))
+        self._extract_dir = self.cache_dir / str(self._zip_file.stem)
         while self._extract_dir.is_dir():
-            self._extract_dir = Path(self.cache_dir, str(self._zip_file.stem) + "_dup")
+            self._extract_dir = self.cache_dir / (str(self._zip_file.stem) + "_dup")
 
     def _analyse_archive(self) -> None:
         shutil.unpack_archive(
@@ -139,8 +213,7 @@ class SingleRepacker(IRepacker):
     def _organize_images(self, img_dir: Path, comic_name: str) -> Path:
         img_dir = img_dir.rename(Path(img_dir.parent, comic_name))
         img_filelist = mfst.copy_dir_struct_to_list(str(img_dir))
-        for file in img_filelist:
-            imgfile = Path(file)
+        for imgfile in img_filelist:
             imgstem = imgfile.stem
             if all(s not in imgstem for s in ["COVER", "END", "PAGE"]):
                 imgfile.unlink()

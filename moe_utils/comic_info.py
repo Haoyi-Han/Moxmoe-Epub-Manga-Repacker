@@ -175,11 +175,17 @@ class ComicInfoExtractor:
         self._build_mox_book()
         self._build_comic_info()
 
+    # 安全搜索，避免返回空列表引发错误
+    def _get_xpath_text(self, xpath: str) -> str:
+        res: str = ""
+        res_finder = self._package.xpath(xpath, namespaces=self.ns)
+        if res_finder:
+            res = res_finder[0].text
+        return res
+
     def _build_mox_book(self):
-        moxbid = self._package.xpath(
-            './/dc:identifier[@id="MOXBID"]', namespaces=self.ns
-        )[0].text
-        title = self._package.xpath(".//dc:title", namespaces=self.ns)[0].text
+        moxbid: str = self._get_xpath_text('.//dc:identifier[@id="MOXBID"]')
+        title: str = self._get_xpath_text(".//dc:title")
         volume = title.split(" - ")[-1].strip()
         self._mox_book = MoxBook(moxbid, volume)
         self._comic_data["MOXBID"] = moxbid
@@ -190,18 +196,12 @@ class ComicInfoExtractor:
         self._comic_data["Web"] = self.mox_book.weburl
 
     def _build_comic_info(self):
-        self._comic_data["Series"] = self._package.xpath(
-            ".//dc:series", namespaces=self.ns
-        )[0].text
-        self._comic_data["Writer"] = self._package.xpath(
-            ".//dc:creator", namespaces=self.ns
-        )[0].text
-        self._comic_data["Publisher"] = self._package.xpath(
-            ".//dc:publisher", namespaces=self.ns
-        )[0].text
-        self._comic_data["Year"] = self._package.xpath(
-            ".//dc:date", namespaces=self.ns
-        )[0].text
+        self._comic_data["Series"] = self._get_xpath_text(".//dc:series")
+        self._comic_data["Writer"] = self._get_xpath_text(".//dc:creator")
+        self._comic_data["Publisher"] = self._get_xpath_text(
+            ".//dc:publisher"
+        )
+        self._comic_data["Year"] = self._get_xpath_text(".//dc:date")
         self._comic_data["PageCount"] = len(
             self._package.xpath(
                 './/opf:spine[@toc="ncx"]/opf:itemref[@idref]', namespaces=self.ns

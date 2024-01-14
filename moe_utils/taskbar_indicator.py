@@ -32,7 +32,8 @@ class WinTaskbar:
     def initWindowsTaskbar(self):
         # importTaskbarAPI()
         import comtypes.client as cc
-        import win32api, win32gui
+        import win32api
+        import win32gui
         taskbar, hWnd = None, None
         cc.GetModule('./tl.tlb')
         import comtypes.gen.TaskbarLib as tbl
@@ -56,3 +57,17 @@ class WinTaskbar:
     @on_windows
     def reset_taskbar_progress(self):
         self.taskbar.SetProgressState(self.hWnd, 0x0)
+
+def create_wintaskbar_object() -> WinTaskbar | None:
+    try:
+        if platform.system() == 'Windows':
+            return WinTaskbar()
+        else:
+            return None
+    except ImportError:
+        return None
+    except FileNotFoundError:
+        return None
+    except OSError:
+        return None
+    
