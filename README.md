@@ -59,7 +59,9 @@ It is recommended to use `Nuitka` to build the executable application. On the Wi
 
 You can use `make.ps1 help` or `make help` to view the supported command help.
 
-To ensure the proper operation of this program, you need to create a `config.toml` configuration file in the directory where the executable file is located. For the Windows platform, you need to copy the `tl.tlb` file from the repository to the directory where the executable file is located. This file is a link library file provided by Microsoft to control the taskbar behavior, and you can also download it manually.
+To ensure the proper operation of this program, you need to create a `config.toml` configuration file in the directory where the executable file is located and complete the specified directory paths in the configuration file.
+
+For the Windows platform, as an optional step, if you wish the program to display progress synchronously on the taskbar during runtime, you will need to copy the `tl.tlb` file from the repository to the directory where the executable file is located. This file is a link library file provided by Microsoft to control the taskbar behavior, and you can also download it manually.
 
 ## Stargazers over time
 
