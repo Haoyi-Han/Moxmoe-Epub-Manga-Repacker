@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "moxmoe-epub-manga-repacker"
-version = "0.1.14"
+version = "0.1.15"
 description = "A manga repacker of EPUB comics downloaded from vol.moe/mox.moe/kox.moe."
 authors = ["Haoyi HAN <54799247+Haoyi-Han@users.noreply.github.com>"]
 license = "MIT"
@@ -8,17 +8,17 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = "^3.10"
 rich = "^13.7.0"
-lxml = "^4.9.3"
+lxml = "^5.1.0"
 tenacity = "^8.2.3"
 
 
 [tool.poetry.group.dev.dependencies]
 pywin32 = "^306"
-comtypes = "^1.2.0"
-setuptools = "^69.0.2"
-cx-freeze = "^6.15.11"
-nuitka = "^1.9.4"
-zstandard = "0.21.0"
+comtypes = "^1.2.1"
+setuptools = "^69.0.3"
+cx-freeze = "^6.15.12"
+nuitka = "^1.9.7"
+zstandard = "^0.22.0"
 
 
 [[tool.poetry.source]]

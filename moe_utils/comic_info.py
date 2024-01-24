@@ -10,16 +10,23 @@ MoxBookType: list[str] = ["其他", "單行本", "番外篇", "連載話"]
 
 
 class MoxBook:
-    # 以下为 MOXBID 已经探明的规律：
-    # 前 3 位：恒为 200
-    # 4-8 位：ID
-    # 9 位：分组
-    # - 1：单行本
-    # - 2：番外篇
-    # - 3：连载话
-    # 10-12 位：分组中顺序
-    # - 作为连载话时存在歧义，可能为第几个文件，也可能为标注的起始话数
-    # 13 位：疑似八进制数
+    """
+    以下为 MOXBID 已经探明的规律：
+    前 3 位：恒为 200
+    4-8 位：bookid
+    - bookid 为 5 位十进制数，str_bookid 为 6 位十六进制数，两者存在编解码关系
+    - 打开书籍网址链接现行规范："/c/{str_bookid}.htm"
+    - 获取书籍数据请求现行规范："/book_data.php?h={timestamp:10 位数字}1{str_bookid}{5 位数字, 可能与书籍属性相关}{uid:8 位数字}{6 位 16 进制整数, 功能尚不明确}"
+    - 对于较早期的链接，str_bookid 就是 "X{bookid}"，其中字母 X 为占位符
+    - 对于新创建的链接，str_bookid 经 bookid 编码得到
+    9 位：分组
+    - 1：单行本
+    - 2：番外篇
+    - 3：连载话
+    10-12 位：分组中顺序
+    - 作为连载话时存在歧义，可能为第几个文件，也可能为标注的起始话数
+    13 位：疑似八进制数
+    """
 
     id: str
     volume: str
@@ -37,15 +44,37 @@ class MoxBook:
         booktype_id: int = int(self.id[8])
         return MoxBookType[booktype_id if booktype_id < 4 else 0]
 
+    @staticmethod
+    def _full_count(vol: str) -> int:
+        return mutl.cn2an_simple(vol.replace("全", "").replace("卷", ""))
+
+    @staticmethod
+    def _full_count_str(vol: str) -> str:
+        return str(MoxBook._full_count(vol))
+
+    @staticmethod
+    def _volume_count(vol: str) -> int:
+        return int(vol.replace("卷", ""))
+
+    @staticmethod
+    def _volume_count_str(vol: str) -> str:
+        return vol.replace("卷", "")
+
+    @staticmethod
+    def _serial_count(vol: str) -> str:
+        return vol.replace("話", "")
+
+    @staticmethod
+    def _serial_diff_count(vol: str) -> int:
+        start, end = vol.replace("話", "").strip().split("-")
+        return int(end) - int(start) + 1
+
     @property
     def number(self) -> str:
-        def full_count(vol: str) -> str:
-            return str(mutl.cn2an_simple(vol.replace("全", "").replace("卷", "")))
-
         pattern_actions = {
-            r"卷\d+": lambda x: x.replace("卷", ""),
-            r"全[01234567890零一二三四五六七八九十百千萬億万亿壹貳叄肆伍陸柒捌玖拾佰仟贰叁陆]+卷": lambda x: full_count,
-            r"話(\d+?-\d+)": lambda x: x.replace("話", ""),
+            r"卷\d+": MoxBook._volume_count_str,
+            r"全[01234567890零一二三四五六七八九十百千萬億万亿壹貳叄肆伍陸柒捌玖拾佰仟贰叁陆]+卷": MoxBook._full_count_str,
+            r"話(\d+?-\d+)": MoxBook._serial_count,
         }
 
         for pattern, action in pattern_actions.items():
@@ -56,17 +85,10 @@ class MoxBook:
 
     @property
     def count(self) -> int:
-        def full_count(vol: str) -> int:
-            return mutl.cn2an_simple(vol.replace("全", "").replace("卷", ""))
-
-        def serial_count(vol: str) -> int:
-            start, end = vol.replace("話", "").strip().split("-")
-            return int(end) - int(start) + 1
-
         pattern_actions = {
-            r"卷\d+": lambda x: int(x.replace("卷", "")),
-            r"全[01234567890零一二三四五六七八九十百千萬億万亿壹貳叄肆伍陸柒捌玖拾佰仟贰叁陆]+卷": full_count,
-            r"話(\d+?-\d+)": serial_count,
+            r"卷\d+": MoxBook._volume_count,
+            r"全[01234567890零一二三四五六七八九十百千萬億万亿壹貳叄肆伍陸柒捌玖拾佰仟贰叁陆]+卷": MoxBook._full_count,
+            r"話(\d+?-\d+)": MoxBook._serial_diff_count,
         }
 
         for pattern, action in pattern_actions.items():
@@ -198,9 +220,7 @@ class ComicInfoExtractor:
     def _build_comic_info(self):
         self._comic_data["Series"] = self._get_xpath_text(".//dc:series")
         self._comic_data["Writer"] = self._get_xpath_text(".//dc:creator")
-        self._comic_data["Publisher"] = self._get_xpath_text(
-            ".//dc:publisher"
-        )
+        self._comic_data["Publisher"] = self._get_xpath_text(".//dc:publisher")
         self._comic_data["Year"] = self._get_xpath_text(".//dc:date")
         self._comic_data["PageCount"] = len(
             self._package.xpath(

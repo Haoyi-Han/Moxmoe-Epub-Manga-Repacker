@@ -1,5 +1,6 @@
 import os
 import shutil
+import time
 import zipfile
 from pathlib import Path
 
@@ -53,14 +54,32 @@ def remove_if_exists(path: str):
 
 # shutil.make_archive() 不是线程安全的，因此考虑用以下函数代替
 # https://stackoverflow.com/questions/41625702/is-shutil-make-archive-thread-safe
-def make_archive_threadsafe(zip_name: str, path: str):
+def make_archive_threadsafe(
+    base_name: str | Path, format: str = "zip", root_dir: str | Path | None = None
+):
+    zip_name: str = f"{str(base_name)}.{format}"
     with zipfile.ZipFile(zip_name, "w", zipfile.ZIP_DEFLATED) as zip_f:
-        for root, dirs, files in os.walk(path):
+        for root, dirs, files in os.walk(root_dir):
             for file in files:
                 zip_f.write(
                     os.path.join(root, file),
-                    os.path.relpath(os.path.join(root, file), path),
+                    os.path.relpath(os.path.join(root, file), root_dir),
                 )
+
+
+# shutil.unpack_archive() 解压时不保留文件时间戳，因此考虑用以下函数代替
+# https://stackoverflow.com/questions/9813243/extract-files-from-zip-file-and-retain-mod-date
+def unpack_archive_with_timestamp(
+    filename: str | Path, extract_dir: str | Path | None = None
+):
+    with zipfile.ZipFile(str(filename), "r") as zip_ref:
+        for member in zip_ref.infolist():
+            member: zipfile.ZipInfo
+            name, date_time = member.filename, member.date_time
+            name = os.path.join(str(extract_dir), name)
+            zip_ref.extract(member, extract_dir)
+            date_time = time.mktime(date_time + (0, 0, -1))
+            os.utime(name, (date_time, date_time))
 
 
 # 检查字符串是否能够组成路径
@@ -75,7 +94,7 @@ def check_if_path_string_valid(
             if check_only:
                 print(f"警告：{path_string} 路径指向的文件夹不存在。")
                 return None
-            
+
             if not force_create:
                 create_folder = Prompt.ask(
                     f"警告：{path_string} 路径指向的文件夹不存在，您想要创建吗？",
