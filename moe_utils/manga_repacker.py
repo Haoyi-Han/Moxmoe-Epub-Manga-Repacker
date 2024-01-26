@@ -1,5 +1,4 @@
 import tomllib
-import os
 from pathlib import Path
 from argparse import Namespace
 from typing import NamedTuple
@@ -26,8 +25,8 @@ class ComicFile:
     def __init__(self, file_path: Path, in_dir: Path, out_dir: Path, cache_dir: Path):
         self.src_file = file_path
         relative_path = file_path.relative_to(in_dir)
-        self.dst_file = out_dir / relative_path
-        self.cache_folder = cache_dir / relative_path
+        self.dst_file = out_dir / relative_path.with_suffix(".cbz")
+        self.cache_folder = cache_dir / relative_path.with_suffix("")
 
 
 class InitValidityChecker(NamedTuple):
@@ -190,9 +189,9 @@ class Repacker(IRepacker):
 class SingleRepacker(IRepacker):
     _cache_dir: Path
     _zip_file: Path
+    _cbz_file: Path
     _extract_dir: Path
     _pack_from_dir: Path
-    _out_dir: Path
     _extractor: mcif.ComicInfoExtractor
     _comic_name: str
 
@@ -200,7 +199,7 @@ class SingleRepacker(IRepacker):
         super().__init__(console)
         self._cache_dir = comic_file.cache_folder
         self._zip_file = comic_file.src_file
-        self._out_dir = comic_file.dst_file.parent
+        self._cbz_file = comic_file.dst_file
 
         self._set_unique_extract_dir()
         self._pack_from_dir = self._load_zip_img()
@@ -274,23 +273,19 @@ class SingleRepacker(IRepacker):
     def pack_folder(self) -> Path:
         self.log(f"{self.comic_name} => [yellow]开始打包")
 
-        out_dir = self._out_dir
-        comic_folder: Path = out_dir / self.comic_name
+        comic_base: Path = self._cbz_file.with_suffix("")
         mfst.make_archive_threadsafe(
-            comic_folder,
-            format="zip",
+            comic_base,
+            format="cbz",
             root_dir=self._pack_from_dir,
         )
 
-        zip_path: Path = out_dir / f"{self.comic_name}.zip"
-        cbz_path: Path = zip_path.rename(zip_path.with_suffix(".cbz"))
+        cbz_path = self._cbz_file
 
         # 修改新建立的 CBZ 文件时间戳为原 EPUB 文档内部的时间戳
         # 由于文档的时间戳随获取方式有别，故以文档内封面图片的时间戳为准
         comic_cover: Path = self._pack_from_dir / "cover.jpg"
-        cbz_mtime: float = comic_cover.stat().st_mtime
-        cbz_atime: float = comic_cover.stat().st_atime
-        os.utime(cbz_path, (cbz_atime, cbz_mtime))
+        mfst.copy_file_timestamp(comic_cover, cbz_path)
 
         self.log(f"{self.comic_name} => [green]打包完成")
         return cbz_path

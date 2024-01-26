@@ -128,3 +128,9 @@ def check_if_path_string_valid(
     except Exception as e:
         print(f"警告：{e}")
         return None
+
+# 复制文件时间戳信息
+def copy_file_timestamp(src_file: Path, dst_file: Path):
+    src_mtime: float = src_file.stat().st_mtime
+    src_atime: float = src_file.stat().st_atime
+    os.utime(dst_file, (src_atime, src_mtime))
