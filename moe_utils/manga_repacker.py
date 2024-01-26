@@ -1,5 +1,4 @@
 import tomllib
-import os
 from pathlib import Path
 from argparse import Namespace
 from typing import NamedTuple
@@ -16,6 +15,18 @@ from tenacity import (
 import moe_utils.file_system as mfst
 import moe_utils.terminal_ui as mtui
 import moe_utils.comic_info as mcif
+
+
+class ComicFile:
+    src_file: Path
+    dst_file: Path
+    cache_folder: Path
+
+    def __init__(self, file_path: Path, in_dir: Path, out_dir: Path, cache_dir: Path):
+        self.src_file = file_path
+        relative_path = file_path.relative_to(in_dir)
+        self.dst_file = out_dir / relative_path.with_suffix(".cbz")
+        self.cache_folder = cache_dir / relative_path.with_suffix("")
 
 
 class InitValidityChecker(NamedTuple):
@@ -53,7 +64,7 @@ class Repacker(IRepacker):
     _output_dir: Path | None = None
     _cache_dir: Path | None = None
     _exclude_list: list[str] = []
-    _filelist: list[Path] = []
+    _filelist: list[ComicFile] = []
 
     def __init__(self, console):
         super().__init__(console)
@@ -139,16 +150,15 @@ class Repacker(IRepacker):
         return str(self._cache_dir)
 
     @property
-    def filelist(self) -> list[Path]:
+    def filelist(self) -> list[ComicFile]:
         return self._filelist
 
-    def repack(self, file_t: Path):
-        comic_name: str = file_t.parents[0].name
-        single_repacker = SingleRepacker(self._cache_dir, file_t, self.console)
-        real_output_dir: Path = self._output_dir
-        if comic_name != self._input_dir.stem:
-            real_output_dir = real_output_dir / comic_name
-        single_repacker.pack_folder(real_output_dir)
+    def repack(self, file_t: ComicFile):
+        single_repacker = SingleRepacker(
+            comic_file=file_t,
+            console=self.console,
+        )
+        single_repacker.pack_folder()
 
     # 初始化路径并复制目录结构
     def _init_path_obj(self, exclude=None) -> list[Path]:
@@ -159,7 +169,16 @@ class Repacker(IRepacker):
         # 文件列表抽取
         mfst.remove_if_exists(self.cache_dir)
         mfst.remove_if_exists(self.output_dir)
-        filelist: list[Path] = mfst.copy_dir_struct_ext_to_list(self.input_dir)
+        raw_filelist: list[Path] = mfst.copy_dir_struct_ext_to_list(self.input_dir)
+        filelist: list[ComicFile] = [
+            ComicFile(
+                file_path=f,
+                in_dir=self._input_dir,
+                out_dir=self._output_dir,
+                cache_dir=self._cache_dir,
+            )
+            for f in raw_filelist
+        ]
         self.log("[green]已完成文件列表抽取。")
         # 目录结构复制
         mfst.copy_dir_struct(self.input_dir, self.output_dir, exclude=exclude)
@@ -170,15 +189,17 @@ class Repacker(IRepacker):
 class SingleRepacker(IRepacker):
     _cache_dir: Path
     _zip_file: Path
+    _cbz_file: Path
     _extract_dir: Path
     _pack_from_dir: Path
     _extractor: mcif.ComicInfoExtractor
     _comic_name: str
 
-    def __init__(self, cache_dir: Path, zip_file: Path, console):
+    def __init__(self, comic_file: ComicFile, console):
         super().__init__(console)
-        self._cache_dir = cache_dir
-        self._zip_file = zip_file
+        self._cache_dir = comic_file.cache_folder
+        self._zip_file = comic_file.src_file
+        self._cbz_file = comic_file.dst_file
 
         self._set_unique_extract_dir()
         self._pack_from_dir = self._load_zip_img()
@@ -249,25 +270,22 @@ class SingleRepacker(IRepacker):
         retry=retry_if_exception_type(Exception),
         stop=(stop_after_attempt(5) | stop_after_delay(1.5)),
     )
-    def pack_folder(self, out_dir: Path, ext: str = ".cbz") -> Path:
+    def pack_folder(self) -> Path:
         self.log(f"{self.comic_name} => [yellow]开始打包")
 
-        comic_folder: Path = out_dir / self.comic_name
+        comic_base: Path = self._cbz_file.with_suffix("")
         mfst.make_archive_threadsafe(
-            comic_folder,
-            format="zip",
+            comic_base,
+            format="cbz",
             root_dir=self._pack_from_dir,
         )
 
-        zip_path: Path = out_dir / f"{self.comic_name}.zip"
-        cbz_path: Path = zip_path.rename(zip_path.with_suffix(ext))
+        cbz_path = self._cbz_file
 
         # 修改新建立的 CBZ 文件时间戳为原 EPUB 文档内部的时间戳
         # 由于文档的时间戳随获取方式有别，故以文档内封面图片的时间戳为准
         comic_cover: Path = self._pack_from_dir / "cover.jpg"
-        cbz_mtime: float = comic_cover.stat().st_mtime
-        cbz_atime: float = comic_cover.stat().st_atime
-        os.utime(cbz_path, (cbz_atime, cbz_mtime))
+        mfst.copy_file_timestamp(comic_cover, cbz_path)
 
         self.log(f"{self.comic_name} => [green]打包完成")
         return cbz_path

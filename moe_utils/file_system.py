@@ -10,19 +10,22 @@ from rich.prompt import Prompt
 # 在指定目录下复制空目录结构
 # 使用 shutil.ignore_patterns() 代替自定义排除函数 20230429
 def copy_dir_struct(inPath: str, outPath: str, exclude=None):
+    def ignore_files(dir: str, files: list[str]) -> list[str]:
+        return [f for f in files if os.path.isfile(os.path.join(dir, f))]
+
     if exclude is None:
         exclude = []
     exclude.append(outPath)
     shutil.copytree(
         inPath,
         outPath,
-        # ignore=lambda dir, files: [f for f in files if os.path.isfile(os.path.join(dir, f))] + exclude,
-        ignore=shutil.ignore_patterns(*exclude, "*.*"),
+        ignore=lambda dir, files: ignore_files(dir, files) + exclude,
         dirs_exist_ok=True,
     )
 
 
 # 创建文件列表（按原目录结构）
+# 使用 glob() 方法代替，本函数弃用
 def copy_dir_struct_to_list(root: str) -> list[Path]:
     return [
         Path(path, name) for path, subdirs, files in os.walk(root) for name in files
@@ -30,9 +33,14 @@ def copy_dir_struct_to_list(root: str) -> list[Path]:
 
 
 # 创建EPUB文件列表（按原目录结构）
+# 使用 glob() 方法重写
 def copy_dir_struct_ext_to_list(root: str, ext=".epub") -> list[Path]:
-    filelist: list[Path] = copy_dir_struct_to_list(root)
-    return [p for p in filelist if (not p.stem.startswith("._")) and (p.suffix == ext)]
+    return list(
+        filter(
+            lambda path: not any((part for part in path.parts if part.startswith("."))),
+            Path(root).rglob(f"*{ext}"),
+        )
+    )
 
 
 # 修改EPUB扩展名为ZIP
@@ -120,3 +128,9 @@ def check_if_path_string_valid(
     except Exception as e:
         print(f"警告：{e}")
         return None
+
+# 复制文件时间戳信息
+def copy_file_timestamp(src_file: Path, dst_file: Path):
+    src_mtime: float = src_file.stat().st_mtime
+    src_atime: float = src_file.stat().st_atime
+    os.utime(dst_file, (src_atime, src_mtime))
