@@ -264,7 +264,6 @@ class SingleRepacker(IRepacker):
         return img_dir
 
     # 打包成压缩包并重命名
-    # 用 shutil.make_archive() 代替 zipFile，压缩体积更小
     # 修改输出路径为绝对路径，避免多次切换工作目录 20230429
     @retry(
         retry=retry_if_exception_type(Exception),
@@ -273,6 +272,7 @@ class SingleRepacker(IRepacker):
     def pack_folder(self) -> Path:
         self.log(f"{self.comic_name} => [yellow]开始打包")
 
+        self._cbz_file = self._cbz_file.parent / f"{self.comic_name}.cbz"
         comic_base: Path = self._cbz_file.with_suffix("")
         mfst.make_archive_threadsafe(
             comic_base,
