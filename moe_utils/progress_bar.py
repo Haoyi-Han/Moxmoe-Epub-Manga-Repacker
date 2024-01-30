@@ -1,5 +1,14 @@
-from rich.progress import Progress, Task, ProgressColumn, TextColumn, BarColumn, MofNCompleteColumn, \
-    SpinnerColumn, TimeElapsedColumn, TimeRemainingColumn
+from rich.progress import (
+    Progress,
+    Task,
+    ProgressColumn,
+    TextColumn,
+    BarColumn,
+    MofNCompleteColumn,
+    SpinnerColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+)
 
 from rich.text import Text
 
@@ -13,17 +22,17 @@ class NaiveTransferSpeedColumn(ProgressColumn):
         return Text(f"({speed:>.2f}/s)", style="progress.data.speed")
 
 
-def generateProgressBar():
+def generate_progress_bar():
     return Progress(
-        TextColumn('[green]{task.description}'),
+        TextColumn("[green]{task.description}"),
         SpinnerColumn(),
         BarColumn(),
         MofNCompleteColumn(),
-        TextColumn('[green][{task.percentage:>3.1f}%]'),
+        TextColumn("[green][{task.percentage:>3.1f}%]"),
         NaiveTransferSpeedColumn(),
-        'ETD:',
+        "ETD:",
         TimeElapsedColumn(),
-        'ETA:',
+        "ETA:",
         TimeRemainingColumn(),
-        auto_refresh=True
+        auto_refresh=True,
     )

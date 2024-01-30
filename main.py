@@ -24,7 +24,7 @@ install(show_locals=True)
 ##############################
 
 # 全局初始化 Repacker 对象 20230521
-pb = mpbr.generateProgressBar()
+pb = mpbr.generate_progress_bar()
 console = pb.console
 repacker = mmrp.Repacker(console=console)
 

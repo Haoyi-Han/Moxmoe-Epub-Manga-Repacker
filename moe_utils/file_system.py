@@ -5,6 +5,7 @@ import zipfile
 from pathlib import Path
 
 from rich.prompt import Prompt
+import filedate
 
 
 # 在指定目录下复制空目录结构
@@ -129,8 +130,20 @@ def check_if_path_string_valid(
         print(f"警告：{e}")
         return None
 
+
 # 复制文件时间戳信息
-def copy_file_timestamp(src_file: Path, dst_file: Path):
-    src_mtime: float = src_file.stat().st_mtime
-    src_atime: float = src_file.stat().st_atime
-    os.utime(dst_file, (src_atime, src_mtime))
+def copy_file_timestamp(
+    src_file: str | Path,
+    dst_file: str | Path,
+    *,
+    copy_ctime: bool = False,
+    copy_mtime: bool = True,
+    copy_atime: bool = True,
+):
+    filedate.copy(
+        str(src_file),
+        str(dst_file),
+        created=copy_ctime,
+        modified=copy_mtime,
+        accessed=copy_atime,
+    )
