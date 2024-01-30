@@ -34,7 +34,7 @@ class WinTaskbar:
 
     @on_windows
     def initWindowsTaskbar(self):
-        # importTaskbarAPI()
+        # importTaskbarAPI() # 经试验本函数工作正常，但由于导入行为在运行期，因此各 IDE 均会认为存在未导入的包
         import comtypes.client as cc
         import win32api
         import win32gui
