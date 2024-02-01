@@ -60,11 +60,16 @@ class InvalidPathStringException(Exception):
 
 
 class IRepacker:
+    console: Console
     verbose: bool
 
-    def __init__(self, console: Console, verbose: bool = True):
-        self.console = console
+    def __init__(self, verbose: bool = True, *, console: Console = None):
         self.verbose = verbose
+        if console is not None:
+            self.init_console(console)
+
+    def init_console(self, console: Console):
+        self.console = console
 
     def print(self, s, overflow: str = "fold"):
         self.console.print(s, overflow=overflow)
@@ -81,8 +86,8 @@ class Repacker(IRepacker):
     _exclude_list: list[str] = []
     _filelist: list[ComicFile] = []
 
-    def __init__(self, console, verbose: bool = True):
-        super().__init__(console, verbose)
+    def __init__(self, verbose: bool = True, console: Console = None):
+        super().__init__(verbose, console=console)
 
     def init_data(self, config_path: str, args: Namespace):
         try:
@@ -170,8 +175,7 @@ class Repacker(IRepacker):
 
     def repack(self, file_t: ComicFile):
         single_repacker = SingleRepacker(
-            comic_file=file_t,
-            console=self.console,
+            comic_file=file_t, console=self.console, verbose=self.verbose
         )
         single_repacker.pack_folder()
 
@@ -193,7 +197,8 @@ class Repacker(IRepacker):
         # 目录表格绘制
         if exclude is None:
             exclude = []
-        self.print(PathTable(self.input_dir, self.output_dir, self.cache_dir))
+        if self.verbose:
+            self.print(PathTable(self.input_dir, self.output_dir, self.cache_dir))
         # 文件列表抽取
         remove_if_exists(self.cache_dir)
         remove_if_exists(self.output_dir)
@@ -223,8 +228,10 @@ class SingleRepacker(IRepacker):
     _extractor: ComicInfoExtractor
     _comic_name: str
 
-    def __init__(self, comic_file: ComicFile, console, verbose: bool = True):
-        super().__init__(console, verbose)
+    def __init__(
+        self, comic_file: ComicFile, verbose: bool = True, console: Console = None
+    ):
+        super().__init__(verbose, console=console)
 
         self._cache_dir = comic_file.cache_folder
         self._zip_file = comic_file.src_file
