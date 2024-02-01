@@ -21,6 +21,7 @@ from .file_system import (
     make_archive_threadsafe,
     remove_if_exists,
     unpack_archive_with_timestamp,
+    PrettyDirectoryTree,
 )
 
 from .terminal_ui import log as tui_log, PathTable
@@ -59,14 +60,18 @@ class InvalidPathStringException(Exception):
 
 
 class IRepacker:
-    def __init__(self, console: Console):
+    verbose: bool
+
+    def __init__(self, console: Console, verbose: bool = True):
         self.console = console
+        self.verbose = verbose
 
     def print(self, s, overflow: str = "fold"):
         self.console.print(s, overflow=overflow)
 
     def log(self, s: str, overflow: str = "fold"):
-        tui_log(self.console, s, overflow=overflow)
+        if self.verbose:
+            tui_log(self.console, s, overflow=overflow)
 
 
 class Repacker(IRepacker):
@@ -76,8 +81,8 @@ class Repacker(IRepacker):
     _exclude_list: list[str] = []
     _filelist: list[ComicFile] = []
 
-    def __init__(self, console):
-        super().__init__(console)
+    def __init__(self, console, verbose: bool = True):
+        super().__init__(console, verbose)
 
     def init_data(self, config_path: str, args: Namespace):
         try:
@@ -170,6 +175,19 @@ class Repacker(IRepacker):
         )
         single_repacker.pack_folder()
 
+    def print_list(self):
+        def new_comic_path(file_t: ComicFile) -> Path:
+            single_repacker = SingleRepacker(
+                comic_file=file_t, console=self.console, verbose=False
+            )
+            comic_name: str = single_repacker.comic_name
+            path: Path = file_t.dst_file.parent / f"{comic_name}"
+            relative_path = path.relative_to(self._output_dir.parent)
+            return relative_path
+
+        fake_list: list[Path] = list(map(new_comic_path, self.filelist))
+        PrettyDirectoryTree(fake_list)
+
     # 初始化路径并复制目录结构
     def _init_path_obj(self, exclude=None) -> list[Path]:
         # 目录表格绘制
@@ -205,8 +223,9 @@ class SingleRepacker(IRepacker):
     _extractor: ComicInfoExtractor
     _comic_name: str
 
-    def __init__(self, comic_file: ComicFile, console):
-        super().__init__(console)
+    def __init__(self, comic_file: ComicFile, console, verbose: bool = True):
+        super().__init__(console, verbose)
+
         self._cache_dir = comic_file.cache_folder
         self._zip_file = comic_file.src_file
         self._cbz_file = comic_file.dst_file

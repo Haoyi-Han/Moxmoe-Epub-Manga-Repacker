@@ -133,6 +133,12 @@ def main():
         "-cl", "--clean-all", action="store_true", help="Clean Output and Cache files"
     )
     parser.add_argument(
+        "-ls",
+        "--list",
+        action="store_true",
+        help="Only list documents without conversion",
+    )
+    parser.add_argument(
         "-nt",
         "--no-taskbar",
         action="store_true",
@@ -161,6 +167,11 @@ def main():
     win_tb = None
     if not args.no_taskbar:
         win_tb = mtbi.create_wintaskbar_object()
+
+    # 若存在参数 ls，则不进行转换，仅打印目录列表
+    if args.list:
+        repacker.print_list()
+        return
 
     # 采用 rich.progress 实现进度条效果
     mtui.log(console, "[yellow]开始提取图片并打包文件...")
