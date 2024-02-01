@@ -6,6 +6,7 @@ param(
 
 # Declare variables
 $PRODUCT_NAME = "Moxmoe Repacker"
+$PROGRAM_NAME = "moxmoe-repacker"
 $WORK_DIR = "./"
 $BUILD_DIR = "./build"
 $ICON_DIR = "./favicon.ico"
@@ -46,6 +47,7 @@ function Make-Build {
         "--onefile", 
         "--nofollow-imports", 
         "--follow-import-to=moe_utils",
+        "--output-filename=${PROGRAM_NAME}",
         "--output-dir=${BUILD_DIR}",
         "--enable-plugin=upx",
         "--windows-icon-from-ico=${ICON_DIR}",

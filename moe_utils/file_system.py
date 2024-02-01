@@ -5,6 +5,7 @@ import zipfile
 from pathlib import Path
 
 from rich.prompt import Prompt
+import filedate
 
 
 # 在指定目录下复制空目录结构
@@ -129,8 +130,77 @@ def check_if_path_string_valid(
         print(f"警告：{e}")
         return None
 
+
 # 复制文件时间戳信息
-def copy_file_timestamp(src_file: Path, dst_file: Path):
-    src_mtime: float = src_file.stat().st_mtime
-    src_atime: float = src_file.stat().st_atime
-    os.utime(dst_file, (src_atime, src_mtime))
+def copy_file_timestamp(
+    src_file: str | Path,
+    dst_file: str | Path,
+    *,
+    copy_ctime: bool = False,
+    copy_mtime: bool = True,
+    copy_atime: bool = True,
+):
+    filedate.copy(
+        str(src_file),
+        str(dst_file),
+        created=copy_ctime,
+        modified=copy_mtime,
+        accessed=copy_atime,
+    )
+
+
+# 从文件列表打印目录树
+# https://stackoverflow.com/questions/74056625/convert-list-of-path-like-strings-to-nested-dictionary-of-lists-arbitrary-depth
+# https://stackoverflow.com/questions/72618673/list-directory-tree-structure-in-python-from-a-list-of-path-file
+class PrettyDirectoryTree:
+    # prefix components:
+    space: str = "    "
+    branch: str = "│   "
+    # pointers:
+    tee: str = "├── "
+    last: str = "└── "
+
+    _path_list: list[Path]
+    _path_dict: dict
+
+    def __init__(self, path_list: list[Path]):
+        self._path_list = path_list
+        self._parse_tree()
+        self._print_tree()
+
+    def _add_path(self, tree: dict, split_path: list[str]):
+        subtree: dict = tree.setdefault(split_path[0], {})
+        if len(split_path) > 1:
+            self._add_path(subtree, split_path[1:])
+
+    def _parse_tree(self):
+        self._path_dict = {}
+        for path in self._path_list:
+            self._add_path(self._path_dict, list(path.parts))
+
+    def _tree(self, paths: dict, prefix: str = "", first: bool = True):
+        """A recursive generator, given a directory Path object
+        will yield a visual tree structure line by line
+        with each line prefixed by the same characters
+        """
+        # contents each get pointers that are ├── with a final └── :
+        pointers = [self.tee] * (len(paths) - 1) + [self.last]
+        for pointer, path in zip(pointers, paths):
+            if first:
+                yield prefix + f"\033[34m{path}\033[0m"
+            else:
+                yield prefix + pointer + f"\033[34m{path}\033[0m"
+            if isinstance(paths[path], dict):  # extend the prefix and recurse:
+                if first:
+                    extension = ""
+                else:
+                    extension = self.branch if pointer == self.tee else self.space
+                    # i.e. space because last, └── , above so no more │
+                yield from self._tree(
+                    paths[path], prefix=prefix + extension, first=False
+                )
+
+    def _print_tree(self):
+        print()
+        for line in self._tree(self._path_dict):
+            print(line)

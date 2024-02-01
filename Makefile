@@ -2,10 +2,11 @@
 PYTHON = python
 NUITKA = -m nuitka
 PRODUCT_NAME = "Moxmoe Repacker"
+PROGRAM_NAME = "moxmoe-repacker"
 WORK_DIR = ./
 BUILD_DIR = ./build
 ICON_DIR = ./favicon.ico
-FLAGS = --show-scons --show-memory --show-progress --onefile --nofollow-imports --follow-import-to=moe_utils --output-dir=$(BUILD_DIR) --enable-plugin="upx"
+FLAGS = --show-scons --show-memory --show-progress --onefile --nofollow-imports --follow-import-to=moe_utils --output-filename=$(PROGRAM_NAME) --output-dir=$(BUILD_DIR) --enable-plugin="upx"
 MAIN_SCRIPT = ./main.py
 
 # Check System Environment

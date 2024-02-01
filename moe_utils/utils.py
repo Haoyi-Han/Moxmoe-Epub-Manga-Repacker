@@ -6,7 +6,7 @@ import stat
 
 
 # 系统当前时间格式化
-def currTimeFormat():
+def curr_time_format():
     return datetime.datetime.now().strftime("%H:%M:%S")
 
 
@@ -34,7 +34,7 @@ def remove_readonly(func, path, _):
 
 
 # 检查文件名是否合法，并处理其中的非法字符 20230630
-def sanitizeFileName(filename: str) -> str:
+def sanitize_filename(filename: str) -> str:
     invalid_chars = ["/", "\\", ":", "*", "?", '"', "<", ">", "|"]
     replacement_dict = {
         "/": "／",

@@ -1,13 +1,17 @@
 import importlib
-import platform
 import time
+import platform
 from functools import wraps
+
+
+def is_NT() -> bool:
+    return platform.system().lower().startswith("win")
 
 
 def on_windows(func):
     @wraps(func)
     def wrapper(*args, **kwargs):
-        if platform.system() == 'Windows':
+        if is_NT():
             return func(*args, **kwargs)
 
     return wrapper
@@ -30,14 +34,18 @@ class WinTaskbar:
 
     @on_windows
     def initWindowsTaskbar(self):
-        # importTaskbarAPI()
+        # importTaskbarAPI() # 经试验本函数工作正常，但由于导入行为在运行期，因此各 IDE 均会认为存在未导入的包
         import comtypes.client as cc
         import win32api
         import win32gui
+
         taskbar, hWnd = None, None
-        cc.GetModule('./tl.tlb')
+        cc.GetModule("./tl.tlb")
         import comtypes.gen.TaskbarLib as tbl
-        taskbar = cc.CreateObject('{56FDF344-FD6D-11d0-958A-006097C9A090}', interface=tbl.ITaskbarList3)
+
+        taskbar = cc.CreateObject(
+            "{56FDF344-FD6D-11d0-958A-006097C9A090}", interface=tbl.ITaskbarList3
+        )
         taskbar.HrInit()
 
         # find hWnd of the console
@@ -58,9 +66,10 @@ class WinTaskbar:
     def reset_taskbar_progress(self):
         self.taskbar.SetProgressState(self.hWnd, 0x0)
 
+
 def create_wintaskbar_object() -> WinTaskbar | None:
     try:
-        if platform.system() == 'Windows':
+        if is_NT():
             return WinTaskbar()
         else:
             return None
@@ -70,4 +79,3 @@ def create_wintaskbar_object() -> WinTaskbar | None:
         return None
     except OSError:
         return None
-    

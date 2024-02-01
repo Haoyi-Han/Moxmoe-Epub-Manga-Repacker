@@ -12,9 +12,20 @@ from tenacity import (
     stop_after_delay,
 )
 
-import moe_utils.file_system as mfst
-import moe_utils.terminal_ui as mtui
-import moe_utils.comic_info as mcif
+from .file_system import (
+    check_if_path_string_valid,
+    copy_dir_struct,
+    copy_dir_struct_to_list,
+    copy_dir_struct_ext_to_list,
+    copy_file_timestamp,
+    make_archive_threadsafe,
+    remove_if_exists,
+    unpack_archive_with_timestamp,
+    PrettyDirectoryTree,
+)
+
+from .terminal_ui import log as tui_log, PathTable
+from .comic_info import ComicInfoExtractor
 
 
 class ComicFile:
@@ -49,14 +60,23 @@ class InvalidPathStringException(Exception):
 
 
 class IRepacker:
-    def __init__(self, console: Console):
+    console: Console
+    verbose: bool
+
+    def __init__(self, verbose: bool = True, *, console: Console = None):
+        self.verbose = verbose
+        if console is not None:
+            self.init_console(console)
+
+    def init_console(self, console: Console):
         self.console = console
 
     def print(self, s, overflow: str = "fold"):
         self.console.print(s, overflow=overflow)
 
     def log(self, s: str, overflow: str = "fold"):
-        mtui.log(self.console, s, overflow=overflow)
+        if self.verbose:
+            tui_log(self.console, s, overflow=overflow)
 
 
 class Repacker(IRepacker):
@@ -66,8 +86,8 @@ class Repacker(IRepacker):
     _exclude_list: list[str] = []
     _filelist: list[ComicFile] = []
 
-    def __init__(self, console):
-        super().__init__(console)
+    def __init__(self, verbose: bool = True, console: Console = None):
+        super().__init__(verbose, console=console)
 
     def init_data(self, config_path: str, args: Namespace):
         try:
@@ -86,13 +106,13 @@ class Repacker(IRepacker):
     def init_from_arguments(
         self, input_dir: str | None, output_dir: str | None, cache_dir: str | None
     ):
-        input_dir_obj: Path | None = mfst.check_if_path_string_valid(
+        input_dir_obj: Path | None = check_if_path_string_valid(
             input_dir, check_only=True, force_create=False
         )
-        output_dir_obj: Path | None = mfst.check_if_path_string_valid(
+        output_dir_obj: Path | None = check_if_path_string_valid(
             output_dir, check_only=False, force_create=False
         )
-        cache_dir_obj: Path | None = mfst.check_if_path_string_valid(
+        cache_dir_obj: Path | None = check_if_path_string_valid(
             cache_dir, check_only=False, force_create=True
         )
         if input_dir_obj is not None:
@@ -110,13 +130,13 @@ class Repacker(IRepacker):
         with config_file.open("rb") as cf:
             config = tomllib.load(cf)
 
-        input_dir_obj: Path | None = mfst.check_if_path_string_valid(
+        input_dir_obj: Path | None = check_if_path_string_valid(
             config["DEFAULT"]["InputDir"], check_only=True, force_create=False
         )
-        output_dir_obj: Path | None = mfst.check_if_path_string_valid(
+        output_dir_obj: Path | None = check_if_path_string_valid(
             config["DEFAULT"]["OutputDir"], check_only=False, force_create=False
         )
-        cache_dir_obj: Path | None = mfst.check_if_path_string_valid(
+        cache_dir_obj: Path | None = check_if_path_string_valid(
             config["DEFAULT"]["CacheDir"], check_only=False, force_create=True
         )
 
@@ -155,21 +175,34 @@ class Repacker(IRepacker):
 
     def repack(self, file_t: ComicFile):
         single_repacker = SingleRepacker(
-            comic_file=file_t,
-            console=self.console,
+            comic_file=file_t, console=self.console, verbose=self.verbose
         )
         single_repacker.pack_folder()
+
+    def print_list(self):
+        def new_comic_path(file_t: ComicFile) -> Path:
+            single_repacker = SingleRepacker(
+                comic_file=file_t, console=self.console, verbose=False
+            )
+            comic_name: str = single_repacker.comic_name
+            path: Path = file_t.dst_file.parent / f"{comic_name}"
+            relative_path = path.relative_to(self._output_dir.parent)
+            return relative_path
+
+        fake_list: list[Path] = list(map(new_comic_path, self.filelist))
+        PrettyDirectoryTree(fake_list)
 
     # 初始化路径并复制目录结构
     def _init_path_obj(self, exclude=None) -> list[Path]:
         # 目录表格绘制
         if exclude is None:
             exclude = []
-        self.print(mtui.PathTable(self.input_dir, self.output_dir, self.cache_dir))
+        if self.verbose:
+            self.print(PathTable(self.input_dir, self.output_dir, self.cache_dir))
         # 文件列表抽取
-        mfst.remove_if_exists(self.cache_dir)
-        mfst.remove_if_exists(self.output_dir)
-        raw_filelist: list[Path] = mfst.copy_dir_struct_ext_to_list(self.input_dir)
+        remove_if_exists(self.cache_dir)
+        remove_if_exists(self.output_dir)
+        raw_filelist: list[Path] = copy_dir_struct_ext_to_list(self.input_dir)
         filelist: list[ComicFile] = [
             ComicFile(
                 file_path=f,
@@ -181,7 +214,7 @@ class Repacker(IRepacker):
         ]
         self.log("[green]已完成文件列表抽取。")
         # 目录结构复制
-        mfst.copy_dir_struct(self.input_dir, self.output_dir, exclude=exclude)
+        copy_dir_struct(self.input_dir, self.output_dir, exclude=exclude)
         self.log("[green]已完成目录结构复制。")
         return filelist
 
@@ -192,11 +225,14 @@ class SingleRepacker(IRepacker):
     _cbz_file: Path
     _extract_dir: Path
     _pack_from_dir: Path
-    _extractor: mcif.ComicInfoExtractor
+    _extractor: ComicInfoExtractor
     _comic_name: str
 
-    def __init__(self, comic_file: ComicFile, console):
-        super().__init__(console)
+    def __init__(
+        self, comic_file: ComicFile, verbose: bool = True, console: Console = None
+    ):
+        super().__init__(verbose, console=console)
+
         self._cache_dir = comic_file.cache_folder
         self._zip_file = comic_file.src_file
         self._cbz_file = comic_file.dst_file
@@ -223,9 +259,9 @@ class SingleRepacker(IRepacker):
             self._extract_dir = self.cache_dir / (str(self._zip_file.stem) + "_dup")
 
     def _analyse_archive(self) -> None:
-        mfst.unpack_archive_with_timestamp(self._zip_file, extract_dir=self.extract_dir)
+        unpack_archive_with_timestamp(self._zip_file, extract_dir=self.extract_dir)
         opf_file = self.extract_dir / "vol.opf"
-        self._extractor = mcif.ComicInfoExtractor(opf_file)
+        self._extractor = ComicInfoExtractor(opf_file)
         self._comic_name = self._extractor.comic_file_name
 
     def _extract_images(self) -> None:
@@ -234,7 +270,7 @@ class SingleRepacker(IRepacker):
 
     def _organize_images(self, img_dir: Path, comic_name: str) -> Path:
         img_dir = img_dir.rename(Path(img_dir.parent, comic_name))
-        img_filelist = mfst.copy_dir_struct_to_list(str(img_dir))
+        img_filelist = copy_dir_struct_to_list(str(img_dir))
         for imgfile in img_filelist:
             imgstem = imgfile.stem
             if all(s not in imgstem for s in ["COVER", "END", "PAGE"]):
@@ -274,7 +310,7 @@ class SingleRepacker(IRepacker):
 
         self._cbz_file = self._cbz_file.parent / f"{self.comic_name}.cbz"
         comic_base: Path = self._cbz_file.with_suffix("")
-        mfst.make_archive_threadsafe(
+        make_archive_threadsafe(
             comic_base,
             format="cbz",
             root_dir=self._pack_from_dir,
@@ -285,7 +321,7 @@ class SingleRepacker(IRepacker):
         # 修改新建立的 CBZ 文件时间戳为原 EPUB 文档内部的时间戳
         # 由于文档的时间戳随获取方式有别，故以文档内封面图片的时间戳为准
         comic_cover: Path = self._pack_from_dir / "cover.jpg"
-        mfst.copy_file_timestamp(comic_cover, cbz_path)
+        copy_file_timestamp(comic_cover, cbz_path)
 
         self.log(f"{self.comic_name} => [green]打包完成")
         return cbz_path

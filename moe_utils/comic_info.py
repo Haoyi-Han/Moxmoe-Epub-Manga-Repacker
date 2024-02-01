@@ -4,7 +4,7 @@ from typing import Iterable
 
 from lxml import etree
 
-import moe_utils.utils as mutl
+from .utils import cn2an_simple, sanitize_filename
 
 MoxBookType: list[str] = ["其他", "單行本", "番外篇", "連載話"]
 
@@ -46,7 +46,7 @@ class MoxBook:
 
     @staticmethod
     def _full_count(vol: str) -> int:
-        return mutl.cn2an_simple(vol.replace("全", "").replace("卷", ""))
+        return cn2an_simple(vol.replace("全", "").replace("卷", ""))
 
     @staticmethod
     def _full_count_str(vol: str) -> str:
@@ -241,7 +241,7 @@ class ComicInfoExtractor:
         author = self._comic_data["Writer"]
         series = self._comic_data["Series"]
         volume = self._comic_data["Volume"]
-        return mutl.sanitizeFileName(f"[{author}][{series}]{volume}")
+        return sanitize_filename(f"[{author}][{series}]{volume}")
 
     @property
     def comic_page_count(self) -> int:

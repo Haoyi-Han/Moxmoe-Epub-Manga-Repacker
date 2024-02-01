@@ -2,7 +2,7 @@ from rich.box import DOUBLE
 from rich.panel import Panel
 from rich.table import Table
 
-import moe_utils.utils as mutl
+from .utils import curr_time_format
 
 
 welcome_panel = Panel.fit(
@@ -35,4 +35,4 @@ class PathTable(Table):
 
 
 def log(console, s: str, overflow="fold"):
-    console.print(f"[blue][{mutl.currTimeFormat()}][/] {s}", overflow=overflow)
+    console.print(f"[blue][{curr_time_format()}][/] {s}", overflow=overflow)
