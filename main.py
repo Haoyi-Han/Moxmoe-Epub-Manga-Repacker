@@ -119,6 +119,9 @@ class Application(IRepacker):
             "-nl", "--no-logo", action="store_true", help="Disable Logo"
         )
         self.parser.add_argument(
+            "-np", "--no-progress", action="store_true", help="Disable Progress Bar"
+        )
+        self.parser.add_argument(
             "-nv", "--no-verbose", action="store_true", help="Disable Verbose Output"
         )
 
@@ -138,16 +141,20 @@ class Application(IRepacker):
         # 弃用多进程/多线程，改用异步 20230525
         # 移除所有多进程/多线程/协程模块 20230528
         # 使用上下文管理器进行封装 20231228
-        with ProgressController(
-            pb=self.pb,
-            tb=self.win_tb,
-            description="Kox.moe",
-            total=len(self.repacker.filelist),
-        ) as pctrl:
-            pctrl: ProgressController
+        if self.args.no_progress:
             for i, file_t in enumerate(self.repacker.filelist):
                 self.work(file_t)
-                pctrl.update(i)
+        else:
+            with ProgressController(
+                pb=self.pb,
+                tb=self.win_tb,
+                description="Kox.moe",
+                total=len(self.repacker.filelist),
+            ) as pctrl:
+                pctrl: ProgressController
+                for i, file_t in enumerate(self.repacker.filelist):
+                    self.work(file_t)
+                    pctrl.update(i)
 
     # 键盘Ctrl+C中断命令优化
     def keyboard_handler(self, signum, frame):

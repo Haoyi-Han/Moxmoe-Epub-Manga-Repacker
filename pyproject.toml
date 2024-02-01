@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "moxmoe-epub-manga-repacker"
-version = "0.4.1"
+version = "0.4.2"
 description = "A manga repacker of EPUB comics downloaded from vol.moe/mox.moe/kox.moe."
 authors = ["Haoyi HAN <54799247+Haoyi-Han@users.noreply.github.com>"]
 license = "MIT"
