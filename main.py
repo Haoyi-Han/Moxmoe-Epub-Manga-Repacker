@@ -12,42 +12,35 @@ from rich.prompt import Prompt
 from rich.traceback import install
 
 from rich.progress import Progress, TaskID
+from rich.console import Console
 
-import moe_utils.file_system as mfst
-import moe_utils.manga_repacker as mmrp
-import moe_utils.progress_bar as mpbr
-import moe_utils.taskbar_indicator as mtbi
-import moe_utils.terminal_ui as mtui
+from moe_utils.file_system import remove_if_exists
+from moe_utils.manga_repacker import Repacker
+from moe_utils.progress_bar import generate_progress_bar
+from moe_utils.taskbar_indicator import WinTaskbar, create_wintaskbar_object
+from moe_utils.terminal_ui import welcome_logo, welcome_panel, log as tui_log
 
 install(show_locals=True)
 
 ##############################
 
-# 全局初始化 Repacker 对象 20230521
-pb = mpbr.generate_progress_bar()
-console = pb.console
-repacker = mmrp.Repacker(console=console)
-
-# 全局初始化 Windows 任务栏对象 20230521
-win_tb: mtbi.WinTaskbar | None = None
-
 
 # 使用上下文管理器进行封装 20231228
 class ProgressController(AbstractContextManager):
     pb: Progress
-    tb: mtbi.WinTaskbar | None = None
+    tb: WinTaskbar | None = None
     tb_imported: bool = False
     description: str
     total: int
     task: TaskID
 
     def __init__(
-        self, pb: Progress, tb: mtbi.WinTaskbar | None, description: str, total: int
+        self, pb: Progress, tb: WinTaskbar | None, description: str, total: int
     ):
         super().__init__()
         self.pb = pb
         self.tb = tb
-        self.tb_imported = isinstance(tb, mtbi.WinTaskbar)
+        self.tb_imported = isinstance(tb, WinTaskbar)
         self.description = description
         self.total = total
 
@@ -73,128 +66,146 @@ class ProgressController(AbstractContextManager):
             self.tb.set_taskbar_progress(i, self.total)
 
 
-# 键盘Ctrl+C中断命令优化
-def keyboard_handler(signum, frame):
-    try:
-        # 重置进度条
-        global repacker, console, win_tb, pb
-        pb.stop()
-        if win_tb is not None:
-            win_tb.reset_taskbar_progress()
+# 主进程完全重构 20240201
+class Application:
+    pb: Progress
+    win_tb: WinTaskbar | None = None
+    console: Console
+    repacker: Repacker
 
-        # 选择是否保留已转换文件和缓存文件夹
-        console.print("[yellow]您手动中断了程序。")
-        resp_out = Prompt.ask(
-            "请选择是否保留已转换文件", choices=["y", "n"], default="y"
+    def __init__(self):
+        self.pb = generate_progress_bar()
+        self.console = self.pb.console
+        self.repacker = Repacker(console=self.console)
+
+    # 键盘Ctrl+C中断命令优化
+    def keyboard_handler(self, signum, frame):
+        try:
+            # 重置进度条
+            self.pb.stop()
+            if self.win_tb is not None:
+                self.win_tb.reset_taskbar_progress()
+
+            # 选择是否保留已转换文件和缓存文件夹
+            self.console.print("[yellow]您手动中断了程序。")
+            resp_out = Prompt.ask(
+                "请选择是否保留已转换文件", choices=["y", "n"], default="y"
+            )
+            resp_cache = Prompt.ask(
+                "请选择是否保留缓存文件夹", choices=["y", "n"], default="n"
+            )
+            # 除打包阶段使用的当前电子书文件外，其他文件均可清除
+            # 之后会考虑将打包阶段作为独立进程，并在中断退出时结束
+            if resp_out == "n":
+                os.chdir(self.repacker.input_dir)  # 防止进程占用输出文件夹 20230429
+                remove_if_exists(self.repacker.output_dir)
+            if resp_cache != "y":
+                os.chdir(self.repacker.input_dir)  # 防止进程占用缓存文件夹 20230429
+                remove_if_exists(self.repacker.cache_dir)
+        finally:
+            exit(0)
+
+    # 将主要执行过程封装，用于单线程或多线程时调用 20230429
+    # 将执行过程提取到主函数外部 20230521
+    def work(self, file_t: Path):
+        self.repacker.repack(file_t)
+
+    # 主程序
+    def main(self):
+        # 优化键盘中断命令
+        import signal
+
+        signal.signal(signal.SIGINT, self.keyboard_handler)
+        signal.signal(signal.SIGTERM, self.keyboard_handler)
+
+        # 命令行参数列表 20231230
+        parser = ArgumentParser(
+            description=welcome_logo, formatter_class=RawTextHelpFormatter
         )
-        resp_cache = Prompt.ask(
-            "请选择是否保留缓存文件夹", choices=["y", "n"], default="n"
+        parser.add_argument(
+            "-if", "--input-dir", type=str, default=None, help="Input Directory Path"
         )
-        # 除打包阶段使用的当前电子书文件外，其他文件均可清除
-        # 之后会考虑将打包阶段作为独立进程，并在中断退出时结束
-        if resp_out == "n":
-            os.chdir(repacker.input_dir)  # 防止进程占用输出文件夹 20230429
-            mfst.remove_if_exists(repacker.output_dir)
-        if resp_cache != "y":
-            os.chdir(repacker.input_dir)  # 防止进程占用缓存文件夹 20230429
-            mfst.remove_if_exists(repacker.cache_dir)
-    finally:
-        exit(0)
+        parser.add_argument(
+            "-of", "--output-dir", type=str, default=None, help="Output Directory Path"
+        )
+        parser.add_argument(
+            "-cc", "--cache-dir", type=str, default=None, help="Cache Directory Path"
+        )
+        parser.add_argument(
+            "-cl",
+            "--clean-all",
+            action="store_true",
+            help="Clean Output and Cache files",
+        )
+        parser.add_argument(
+            "-ls",
+            "--list",
+            action="store_true",
+            help="Only list documents without conversion",
+        )
+        parser.add_argument(
+            "-nt",
+            "--no-taskbar",
+            action="store_true",
+            help="Disable Taskbar Progress Display",
+        )
+        parser.add_argument(
+            "-nl", "--no-logo", action="store_true", help="Disable Logo"
+        )
+        args: Namespace = parser.parse_args()
 
+        # 欢迎界面
+        if not args.no_logo:
+            self.console.print(welcome_panel)
 
-# 将主要执行过程封装，用于单线程或多线程时调用 20230429
-# 将执行过程提取到主函数外部 20230521
-def work(file_t: Path):
-    repacker.repack(file_t)
+        # 初始化转换器对象
+        self.repacker.init_data(config_path="./config.toml", args=args)
 
+        # 若存在参数 cl，则运行清理命令并退出 20231230
+        if args.clean_all:
+            tui_log(self.console, "[yellow]开始清理输出文件...")
+            remove_if_exists(self.repacker.output_dir)
+            os.mkdir(self.repacker.output_dir)
+            tui_log(self.console, "[yellow]开始清理缓存文件...")
+            remove_if_exists(self.repacker.cache_dir)
+            return
 
-# 主程序
-def main():
-    # 优化键盘中断命令
-    import signal
+        # 若存在参数 nt，则不加载任务栏进度条
+        self.win_tb = None
+        if not args.no_taskbar:
+            self.win_tb = create_wintaskbar_object()
 
-    signal.signal(signal.SIGINT, keyboard_handler)
-    signal.signal(signal.SIGTERM, keyboard_handler)
+        # 若存在参数 ls，则不进行转换，仅打印目录列表
+        if args.list:
+            self.repacker.print_list()
+            return
 
-    # 命令行参数列表 20231230
-    parser = ArgumentParser(
-        description=mtui.welcome_logo, formatter_class=RawTextHelpFormatter
-    )
-    parser.add_argument(
-        "-if", "--input-dir", type=str, default=None, help="Input Directory Path"
-    )
-    parser.add_argument(
-        "-of", "--output-dir", type=str, default=None, help="Output Directory Path"
-    )
-    parser.add_argument(
-        "-cc", "--cache-dir", type=str, default=None, help="Cache Directory Path"
-    )
-    parser.add_argument(
-        "-cl", "--clean-all", action="store_true", help="Clean Output and Cache files"
-    )
-    parser.add_argument(
-        "-ls",
-        "--list",
-        action="store_true",
-        help="Only list documents without conversion",
-    )
-    parser.add_argument(
-        "-nt",
-        "--no-taskbar",
-        action="store_true",
-        help="Disable Taskbar Progress Display",
-    )
-    parser.add_argument("-nl", "--no-logo", action="store_true", help="Disable Logo")
-    args: Namespace = parser.parse_args()
+        # 采用 rich.progress 实现进度条效果
+        tui_log(self.console, "[yellow]开始提取图片并打包文件...")
 
-    # 欢迎界面
-    if not args.no_logo:
-        console.print(mtui.welcome_panel)
+        # 引入 CPU 线程池，提高任务执行效率 20230429
+        # 更改 CPU 线程池为 CPU 进程池 20230521
+        # 弃用多进程/多线程，改用异步 20230525
+        # 移除所有多进程/多线程/协程模块 20230528
+        # 使用上下文管理器进行封装 20231228
+        with ProgressController(
+            pb=self.pb,
+            tb=self.win_tb,
+            description="Kox.moe",
+            total=len(self.repacker.filelist),
+        ) as pctrl:
+            pctrl: ProgressController
+            for i, file_t in enumerate(self.repacker.filelist):
+                self.work(file_t)
+                pctrl.update(i)
 
-    # 初始化转换器对象
-    repacker.init_data(config_path="./config.toml", args=args)
+        tui_log(self.console, "[yellow]开始清理缓存文件...")
+        os.chdir(self.repacker.output_dir)  # 防止进程占用缓存文件夹 20230429
+        remove_if_exists(self.repacker.cache_dir)
 
-    # 若存在参数 cl，则运行清理命令并退出 20231230
-    if args.clean_all:
-        mtui.log(console, "[yellow]开始清理输出文件...")
-        mfst.remove_if_exists(repacker.output_dir)
-        os.mkdir(repacker.output_dir)
-        mtui.log(console, "[yellow]开始清理缓存文件...")
-        mfst.remove_if_exists(repacker.cache_dir)
-        return
-
-    # 若存在参数 nt，则不加载任务栏进度条
-    win_tb = None
-    if not args.no_taskbar:
-        win_tb = mtbi.create_wintaskbar_object()
-
-    # 若存在参数 ls，则不进行转换，仅打印目录列表
-    if args.list:
-        repacker.print_list()
-        return
-
-    # 采用 rich.progress 实现进度条效果
-    mtui.log(console, "[yellow]开始提取图片并打包文件...")
-
-    # 引入 CPU 线程池，提高任务执行效率 20230429
-    # 更改 CPU 线程池为 CPU 进程池 20230521
-    # 弃用多进程/多线程，改用异步 20230525
-    # 移除所有多进程/多线程/协程模块 20230528
-    # 使用上下文管理器进行封装 20231228
-    with ProgressController(
-        pb=pb, tb=win_tb, description="Kox.moe", total=len(repacker.filelist)
-    ) as pctrl:
-        pctrl: ProgressController
-        for i, file_t in enumerate(repacker.filelist):
-            work(file_t)
-            pctrl.update(i)
-
-    mtui.log(console, "[yellow]开始清理缓存文件...")
-    os.chdir(repacker.output_dir)  # 防止进程占用缓存文件夹 20230429
-    mfst.remove_if_exists(repacker.cache_dir)
-
-    mtui.log(console, "[green]所有转换任务完成！")
+        tui_log(self.console, "[green]所有转换任务完成！")
 
 
 if __name__ == "__main__":
-    main()
+    app = Application()
+    app.main()
