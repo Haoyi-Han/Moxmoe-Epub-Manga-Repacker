@@ -78,6 +78,12 @@ class Application(IRepacker):
         self._init_parser()
         self.args = self.parser.parse_args()
 
+        if self.args.quiet:
+            self.args.no_logo = True
+            self.args.no_progress = True
+            self.args.no_taskbar = True
+            self.args.no_verbose = True
+
         if self.args.list or self.args.no_verbose:
             verbose = False
 
@@ -89,10 +95,10 @@ class Application(IRepacker):
             description=welcome_logo, formatter_class=RawTextHelpFormatter
         )
         self.parser.add_argument(
-            "-if", "--input-dir", type=str, default=None, help="Input Directory Path"
+            "-i", "--input-dir", type=str, default=None, help="Input Directory Path"
         )
         self.parser.add_argument(
-            "-of", "--output-dir", type=str, default=None, help="Output Directory Path"
+            "-o", "--output-dir", type=str, default=None, help="Output Directory Path"
         )
         self.parser.add_argument(
             "-cc", "--cache-dir", type=str, default=None, help="Cache Directory Path"
@@ -104,7 +110,7 @@ class Application(IRepacker):
             help="Clean Output and Cache files",
         )
         self.parser.add_argument(
-            "-ls",
+            "-l",
             "--list",
             action="store_true",
             help="Only list documents without conversion",
@@ -123,6 +129,9 @@ class Application(IRepacker):
         )
         self.parser.add_argument(
             "-nv", "--no-verbose", action="store_true", help="Disable Verbose Output"
+        )
+        self.parser.add_argument(
+            "-q", "--quiet", action="store_true", help="Quiet Mode"
         )
 
     def _clean_cache(self):
