@@ -178,7 +178,9 @@ class ComicInfoExtractor:
     _comic_data: dict[str, str | int]
     ns: dict[str, str]
 
-    def __init__(self, opf_file: Path):
+    def __init__(
+        self, use_text: bool = True, opf_text: str = "", opf_file: Path | None = None
+    ):
         # 设定命名空间
         self.ns = {
             "dc": "http://purl.org/dc/elements/1.1/",
@@ -186,9 +188,12 @@ class ComicInfoExtractor:
         }
 
         # 解析元数据
-        with opf_file.open("r", encoding="utf-8") as opff:
-            self._metadata = opff.read()
-            self._package = etree.fromstring(self._metadata.encode("utf-8"))
+        if use_text:
+            self._load_opf_text(opf_text)
+        else:
+            self._load_opf_file(opf_file)
+
+        self._package = etree.fromstring(self._metadata.encode("utf-8"))
 
         self._comic_data = {}
         self._comic_data["Publisher"] = "Kox.moe"
@@ -196,6 +201,13 @@ class ComicInfoExtractor:
 
         self._build_mox_book()
         self._build_comic_info()
+
+    def _load_opf_text(self, opf_text: str):
+        self._metadata = opf_text
+
+    def _load_opf_file(self, opf_file: Path):
+        with opf_file.open("r", encoding="utf-8") as opff:
+            self._metadata = opff.read()
 
     # 安全搜索，避免返回空列表引发错误
     def _get_xpath_text(self, xpath: str) -> str:

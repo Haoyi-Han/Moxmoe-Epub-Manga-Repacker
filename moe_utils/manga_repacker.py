@@ -1,7 +1,9 @@
+from io import TextIOWrapper
 import tomllib
 from pathlib import Path
 from argparse import Namespace
 from typing import NamedTuple
+import zipfile
 
 from rich.console import Console
 
@@ -71,11 +73,11 @@ class IRepacker:
     def init_console(self, console: Console):
         self.console = console
 
-    def print(self, s, overflow: str = "fold"):
+    def print(self, s, *, overflow: str = "fold"):
         self.console.print(s, overflow=overflow)
 
-    def log(self, s: str, overflow: str = "fold"):
-        if self.verbose:
+    def log(self, s: str, *, overflow: str = "fold", verbose: bool = True):
+        if self.verbose and verbose:
             tui_log(self.console, s, overflow=overflow)
 
 
@@ -182,7 +184,7 @@ class Repacker(IRepacker):
     def print_list(self):
         def new_comic_path(file_t: ComicFile) -> Path:
             single_repacker = SingleRepacker(
-                comic_file=file_t, console=self.console, verbose=False
+                comic_file=file_t, no_work=True, verbose=False, console=self.console
             )
             comic_name: str = single_repacker.comic_name
             path: Path = file_t.dst_file.parent / f"{comic_name}"
@@ -192,6 +194,14 @@ class Repacker(IRepacker):
         fake_list: list[Path] = list(map(new_comic_path, self.filelist))
         PrettyDirectoryTree(fake_list)
 
+    def clean_cache(self, verbose: bool = True):
+        self.log("[yellow]开始清理缓存文件...", verbose=verbose)
+        remove_if_exists(self.cache_dir)
+
+    def clean_output(self, verbose: bool = True):
+        self.log("[yellow]开始清理输出文件...", verbose=verbose)
+        remove_if_exists(self.output_dir, recreate=True)
+
     # 初始化路径并复制目录结构
     def _init_path_obj(self, exclude=None) -> list[Path]:
         # 目录表格绘制
@@ -200,8 +210,9 @@ class Repacker(IRepacker):
         if self.verbose:
             self.print(PathTable(self.input_dir, self.output_dir, self.cache_dir))
         # 文件列表抽取
-        remove_if_exists(self.cache_dir)
-        remove_if_exists(self.output_dir)
+        self.clean_cache(verbose=False)
+        self.clean_output(verbose=False)
+
         raw_filelist: list[Path] = copy_dir_struct_ext_to_list(self.input_dir)
         filelist: list[ComicFile] = [
             ComicFile(
@@ -229,7 +240,11 @@ class SingleRepacker(IRepacker):
     _comic_name: str
 
     def __init__(
-        self, comic_file: ComicFile, verbose: bool = True, console: Console = None
+        self,
+        comic_file: ComicFile,
+        no_work: bool = False,
+        verbose: bool = True,
+        console: Console = None,
     ):
         super().__init__(verbose, console=console)
 
@@ -237,8 +252,11 @@ class SingleRepacker(IRepacker):
         self._zip_file = comic_file.src_file
         self._cbz_file = comic_file.dst_file
 
-        self._set_unique_extract_dir()
-        self._pack_from_dir = self._load_zip_img()
+        if no_work:
+            self._analyse_archive()
+        else:
+            self._set_unique_extract_dir()
+            self._pack_from_dir = self._load_zip_img()
 
     @property
     def cache_dir(self) -> Path:
@@ -254,15 +272,33 @@ class SingleRepacker(IRepacker):
 
     # 避免相同文件名解压到缓存文件夹时冲突
     def _set_unique_extract_dir(self) -> None:
-        self._extract_dir = self.cache_dir / str(self._zip_file.stem)
+        self._extract_dir = self.cache_dir
         while self._extract_dir.is_dir():
-            self._extract_dir = self.cache_dir / (str(self._zip_file.stem) + "_dup")
+            self._extract_dir = self.cache_dir.with_suffix(".1")
+
+    # 解压前单独访问 opf 文件获取元数据
+    # https://stackoverflow.com/questions/20601796/how-to-open-an-unicode-text-file-inside-a-zip
+    def _extract_opf_from_epub(
+        self, epub_file: str | Path, opf_name: str = "vol.opf"
+    ) -> str:
+        with zipfile.ZipFile(str(epub_file), "r") as zip_ref:
+            with zip_ref.open(opf_name, "r") as opf_file:
+                text: str = ""
+                for line in TextIOWrapper(opf_file, encoding="utf-8"):
+                    text += line
+                return text
 
     def _analyse_archive(self) -> None:
-        unpack_archive_with_timestamp(self._zip_file, extract_dir=self.extract_dir)
-        opf_file = self.extract_dir / "vol.opf"
-        self._extractor = ComicInfoExtractor(opf_file)
+        opf_text: str = self._extract_opf_from_epub(self._zip_file, "vol.opf")
+        self._extractor = ComicInfoExtractor(use_text=True, opf_text=opf_text)
         self._comic_name = self._extractor.comic_file_name
+
+    def _extract_archive(self) -> None:
+        unpack_archive_with_timestamp(
+            self._zip_file,
+            extract_dir=self.extract_dir,
+            filters=["html/", "image/"],
+        )
 
     def _extract_images(self) -> None:
         for new_name, img_src in self._extractor.build_img_filelist(self.extract_dir):
@@ -286,6 +322,7 @@ class SingleRepacker(IRepacker):
     def _load_zip_img(self) -> Path:
         self.log(f"[yellow]开始解析 {self._zip_file.stem}")
         self._analyse_archive()
+        self._extract_archive()
 
         self.log(f"{self.comic_name} => [yellow]开始提取")
         self._extract_images()

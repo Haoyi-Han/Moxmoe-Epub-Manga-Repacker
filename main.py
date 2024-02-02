@@ -133,15 +133,12 @@ class Application(IRepacker):
         self.parser.add_argument(
             "-q", "--quiet", action="store_true", help="Quiet Mode"
         )
-
-    def _clean_cache(self):
-        self.log("[yellow]开始清理缓存文件...")
-        remove_if_exists(self.repacker.cache_dir)
-
-    def _clean_output(self):
-        self.log("[yellow]开始清理输出文件...")
-        remove_if_exists(self.repacker.output_dir)
-        os.mkdir(self.repacker.output_dir)
+        self.parser.add_argument(
+            "-kc",
+            "--keep-cache",
+            action="store_true",
+            help="Keep cache folder when exit",
+        )
 
     def _convert(self):
         # 采用 rich.progress 实现进度条效果
@@ -185,7 +182,7 @@ class Application(IRepacker):
             # 之后会考虑将打包阶段作为独立进程，并在中断退出时结束
             if resp_out == "n":
                 os.chdir(self.repacker.input_dir)  # 防止进程占用输出文件夹 20230429
-                remove_if_exists(self.repacker.output_dir)
+                remove_if_exists(self.repacker.output_dir, recreate=True)
             if resp_cache != "y":
                 os.chdir(self.repacker.input_dir)  # 防止进程占用缓存文件夹 20230429
                 remove_if_exists(self.repacker.cache_dir)
@@ -215,8 +212,8 @@ class Application(IRepacker):
 
         # 若存在参数 cl，则运行清理命令并退出 20231230
         if self.args.clean_all:
-            self._clean_cache()
-            self._clean_output()
+            self.repacker.clean_cache()
+            self.repacker.clean_output()
             return
 
         # 若存在参数 ls，则不进行转换，仅打印目录列表
@@ -233,7 +230,8 @@ class Application(IRepacker):
 
         self._convert()
 
-        self._clean_cache()
+        if not self.args.keep_cache:
+            self.repacker.clean_cache()
 
         self.log("[green]所有转换任务完成！")
 
