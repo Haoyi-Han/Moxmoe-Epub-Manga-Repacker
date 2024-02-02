@@ -56,9 +56,11 @@ def suffix_change(
     return filelist
 
 
-def remove_if_exists(path: str):
+def remove_if_exists(path: str, *, recreate: bool = False):
     if Path(path).is_dir():
         shutil.rmtree(os.fspath(path), ignore_errors=True)
+    if recreate:
+        os.mkdir(path)
 
 
 # shutil.make_archive() 不是线程安全的，因此考虑用以下函数代替
@@ -79,10 +81,21 @@ def make_archive_threadsafe(
 # shutil.unpack_archive() 解压时不保留文件时间戳，因此考虑用以下函数代替
 # https://stackoverflow.com/questions/9813243/extract-files-from-zip-file-and-retain-mod-date
 def unpack_archive_with_timestamp(
-    filename: str | Path, extract_dir: str | Path | None = None
+    filename: str | Path,
+    extract_dir: str | Path | None = None,
+    *,
+    filters: list[str] | None = None,
 ):
     with zipfile.ZipFile(str(filename), "r") as zip_ref:
-        for member in zip_ref.infolist():
+        filter_infolist: list[zipfile.ZipInfo] = zip_ref.infolist()
+        if filters is not None:
+
+            def check(p: zipfile.ZipInfo) -> bool:
+                return any(p.filename.startswith(ft) for ft in filters)
+
+            filter_infolist = list(filter(check, filter_infolist))
+
+        for member in filter_infolist:
             member: zipfile.ZipInfo
             name, date_time = member.filename, member.date_time
             name = os.path.join(str(extract_dir), name)
