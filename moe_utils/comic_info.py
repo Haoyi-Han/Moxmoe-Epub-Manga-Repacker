@@ -109,7 +109,7 @@ class ComicInfo:
 
     def __init__(self, input_data: dict | str = {}):
         if isinstance(input_data, str):
-            info_data: dict = etree.fromstring(input_data)
+            info_data: dict = etree.fromstring(input_data, parser=etree.XMLParser())
             info_data = info_data.get("ComicInfo", {})
         elif isinstance(input_data, dict):
             info_data: dict = input_data
@@ -134,7 +134,7 @@ class ComicInfo:
 
     @property
     def id(self) -> str:
-        return self._metadata["MOXBID"]
+        return str(self._metadata["MOXBID"])
 
     def __str__(self):
         return self.to_xml().decode(encoding="utf-8")
@@ -144,7 +144,7 @@ class ComicInfo:
 
     def to_xml(self) -> bytes:
         data = self.to_dict()
-        root = etree.Element("ComicInfo")
+        root = etree.Element("ComicInfo", attrib=None, nsmap=None)
         self._build_xml(root, data)
         return etree.tostring(
             root, pretty_print=True, xml_declaration=True, encoding="utf-8"
@@ -154,19 +154,19 @@ class ComicInfo:
         with output.open("w", encoding="utf-8") as of:
             of.write(self.to_xml().decode("utf-8"))
 
-    def _build_xml(self, parent: etree.Element, data: dict):
+    def _build_xml(self, parent: etree._Element, data: dict):
         for key, value in data.items():
             if isinstance(value, dict):
-                element = etree.Element(key)
+                element = etree.Element(key, attrib=None, nsmap=None)
                 parent.append(element)
                 self._build_xml(element, value)
             elif isinstance(value, list):
                 for item in value:
-                    element = etree.Element(key)
+                    element = etree.Element(key, attrib=None, nsmap=None)
                     parent.append(element)
                     self._build_xml(element, item)
             else:
-                element = etree.Element(key)
+                element = etree.Element(key, attrib=None, nsmap=None)
                 element.text = str(value)
                 parent.append(element)
 
@@ -191,9 +191,12 @@ class ComicInfoExtractor:
         if use_text:
             self._load_opf_text(opf_text)
         else:
+            assert opf_file is not None
             self._load_opf_file(opf_file)
 
-        self._package = etree.fromstring(self._metadata.encode("utf-8"))
+        self._package = etree.fromstring(
+            self._metadata.encode("utf-8"), parser=etree.XMLParser()
+        )
 
         self._comic_data = {}
         self._comic_data["Publisher"] = "Kox.moe"
@@ -257,7 +260,7 @@ class ComicInfoExtractor:
 
     @property
     def comic_page_count(self) -> int:
-        return self._comic_data["PageCount"]
+        return int(self._comic_data["PageCount"])
 
     def _build_filelist(self, xpath: str) -> Iterable[tuple[str, str]]:
         # 返回一个迭代器，元素格式为元组 (id, href)
@@ -308,7 +311,9 @@ class ComicInfoExtractor:
         def _extract_img_from_html(html_path: Path) -> Path:
             with html_path.open("r", encoding="utf-8") as hf:
                 html_text = hf.read()
-                html_tree: etree.Element = etree.HTML(html_text)
+                html_tree: etree.Element = etree.fromstring(
+                    html_text, parser=etree.HTMLParser()
+                )
                 return (
                     extract_dir / html_tree.xpath(".//img[@src]")[0].attrib["src"][3:]
                 )

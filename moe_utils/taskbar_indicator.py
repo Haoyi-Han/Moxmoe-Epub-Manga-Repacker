@@ -17,7 +17,7 @@ def on_windows(func):
     return wrapper
 
 
-def global_imports(modulename: str, alias: str = None):
+def global_imports(modulename: str, alias: str | None = None):
     globals()[alias if alias else modulename] = importlib.import_module(modulename)
 
 

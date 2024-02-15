@@ -1,17 +1,47 @@
 import os
 import shutil
+import subprocess
 import time
+from typing import Sequence
 import zipfile
 from pathlib import Path
 
 from rich.prompt import Prompt
 import filedate
 
+GeneralPath = str | os.PathLike | None
+GeneralPathUnwrapped = str | os.PathLike
+
+
+def make_path(path: GeneralPath) -> Path | None:
+    if path is None:
+        return None
+    if isinstance(path, Path):
+        return path.resolve()
+    try:
+        path = Path(path).resolve()
+        return path
+    except Exception:
+        return None
+
+
+def make_paths(paths: Sequence[GeneralPath]) -> list[Path | None]:
+    return list(filter(lambda x: x is not None, map(make_path, paths)))
+
+
+def subprocess_quiet_run(args: list[str]):
+    subprocess.run(
+        args,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.STDOUT,
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+
 
 # 在指定目录下复制空目录结构
 # 使用 shutil.ignore_patterns() 代替自定义排除函数 20230429
 def copy_dir_struct(inPath: str, outPath: str, exclude=None):
-    def ignore_files(dir: str, files: list[str]) -> list[str]:
+    def ignore_files(dir: GeneralPathUnwrapped, files: list[str]) -> list[str]:
         return [f for f in files if os.path.isfile(os.path.join(dir, f))]
 
     if exclude is None:
@@ -66,8 +96,11 @@ def remove_if_exists(path: str, *, recreate: bool = False):
 # shutil.make_archive() 不是线程安全的，因此考虑用以下函数代替
 # https://stackoverflow.com/questions/41625702/is-shutil-make-archive-thread-safe
 def make_archive_threadsafe(
-    base_name: str | Path, format: str = "zip", root_dir: str | Path | None = None
+    base_name: GeneralPathUnwrapped,
+    format: str = "zip",
+    root_dir: GeneralPath = None,
 ):
+    assert root_dir is not None
     zip_name: str = f"{str(base_name)}.{format}"
     with zipfile.ZipFile(zip_name, "w", zipfile.ZIP_DEFLATED) as zip_f:
         for root, dirs, files in os.walk(root_dir):
@@ -81,8 +114,8 @@ def make_archive_threadsafe(
 # shutil.unpack_archive() 解压时不保留文件时间戳，因此考虑用以下函数代替
 # https://stackoverflow.com/questions/9813243/extract-files-from-zip-file-and-retain-mod-date
 def unpack_archive_with_timestamp(
-    filename: str | Path,
-    extract_dir: str | Path | None = None,
+    filename: GeneralPathUnwrapped,
+    extract_dir: GeneralPath = None,
     *,
     filters: list[str] | None = None,
 ):
@@ -104,9 +137,100 @@ def unpack_archive_with_timestamp(
             os.utime(name, (date_time, date_time))
 
 
+class Extern7z:
+    sevenz_exec: str
+    sevenz_a_args: list[str] = []
+    sevenz_x_args: list[str] = []
+
+    def __init__(self, sevenz_exec: GeneralPathUnwrapped = "7z"):
+        self.sevenz_exec = str(sevenz_exec)
+
+    def _make_args_a(
+        self, zipfile: GeneralPathUnwrapped, filelist: Sequence[GeneralPath]
+    ):
+        self.sevenz_a_args = [
+            self.sevenz_exec,
+            "a",
+            str(zipfile),
+            *map(str, filelist),
+            "-mx=5",
+            "-m0=Deflate",
+            "-mmt=10",
+            "-mtm",
+            "-mtc",
+            "-mta",
+            "-slt",
+            "-stl",
+            "-bd",
+        ]
+
+    def _make_args_x(self, zipfile: GeneralPathUnwrapped, extract_dir: GeneralPath):
+        self.sevenz_x_args = [
+            self.sevenz_exec,
+            "x",
+            str(zipfile),
+            f"-o{str(extract_dir)}",
+        ]
+
+    def make_archive(
+        self,
+        zipfile: GeneralPathUnwrapped,
+        root_dir: GeneralPath = None,
+        filelist: Sequence[GeneralPath] = [],
+    ) -> Path:
+        _zipfile = make_path(zipfile)
+        assert _zipfile is not None
+
+        if _zipfile.exists():
+            _zipfile.unlink()
+
+        suffix: str = _zipfile.suffix
+        _zipfile = _zipfile.with_suffix(".zip")
+
+        if root_dir is not None:
+            _root_dir = make_path(root_dir)
+            assert _root_dir is not None
+            filelist = make_paths(list(_root_dir.rglob("*.*")))
+
+        self._make_args_a(zipfile=_zipfile, filelist=filelist)
+        sevenz_args = self.sevenz_a_args
+
+        subprocess_quiet_run(sevenz_args)
+
+        _zipfile = _zipfile.rename(_zipfile.with_suffix(suffix))
+
+        return _zipfile
+
+    def unpack_archive(
+        self,
+        zipfile: GeneralPathUnwrapped,
+        extract_dir: GeneralPath = None,
+        no_root: bool = False,
+    ) -> Path:
+        _zipfile = make_path(zipfile)
+        assert _zipfile is not None
+
+        _extract_dir = make_path(extract_dir)
+        if _extract_dir is None:
+            if no_root:
+                _extract_dir = _zipfile.parent
+            else:
+                _extract_dir = _zipfile.parent / _zipfile.stem
+
+        if not _extract_dir.exists():
+            _extract_dir.mkdir(parents=True, exist_ok=True)
+
+        self._make_args_x(zipfile=_zipfile, extract_dir=_extract_dir)
+        sevenz_args = self.sevenz_x_args
+
+        subprocess_quiet_run(sevenz_args)
+
+        return _extract_dir
+
+
 # 检查字符串是否能够组成路径
 def check_if_path_string_valid(
-    path_string: str, check_only: bool = True, force_create: bool = False
+    path_string: str | None, check_only: bool = True, force_create: bool = False
 ) -> Path | None:
     try:
         if path_string is None:
@@ -146,8 +270,8 @@ def check_if_path_string_valid(
 
 # 复制文件时间戳信息
 def copy_file_timestamp(
-    src_file: str | Path,
-    dst_file: str | Path,
+    src_file: GeneralPathUnwrapped,
+    dst_file: GeneralPathUnwrapped,
     *,
     copy_ctime: bool = False,
     copy_mtime: bool = True,

@@ -5,7 +5,7 @@ from argparse import Namespace
 from typing import NamedTuple
 import zipfile
 
-from rich.console import Console
+from rich.console import Console, OverflowMethod
 
 from tenacity import (
     retry,
@@ -15,6 +15,8 @@ from tenacity import (
 )
 
 from .file_system import (
+    Extern7z,
+    GeneralPath,
     check_if_path_string_valid,
     copy_dir_struct,
     copy_dir_struct_to_list,
@@ -35,7 +37,17 @@ class ComicFile:
     dst_file: Path
     cache_folder: Path
 
-    def __init__(self, file_path: Path, in_dir: Path, out_dir: Path, cache_dir: Path):
+    def __init__(
+        self,
+        file_path: Path | None,
+        in_dir: Path | None,
+        out_dir: Path | None,
+        cache_dir: Path | None,
+    ):
+        assert file_path is not None
+        assert in_dir is not None
+        assert out_dir is not None
+        assert cache_dir is not None
         self.src_file = file_path
         relative_path = file_path.relative_to(in_dir)
         self.dst_file = out_dir / relative_path.with_suffix(".cbz")
@@ -64,16 +76,30 @@ class InvalidPathStringException(Exception):
 class IRepacker:
     console: Console
     verbose: bool
+    _use_extern_7z: bool = False
+    _extern_7z: Extern7z | None = None
 
-    def __init__(self, verbose: bool = True, *, console: Console = None):
+    def __init__(
+        self,
+        verbose: bool = True,
+        *,
+        console: Console | None = None,
+        sevenz: Extern7z | GeneralPath = None,
+    ):
         self.verbose = verbose
         if console is not None:
             self.init_console(console)
+        if sevenz is not None:
+            self._use_extern_7z = True
+            if isinstance(sevenz, Extern7z):
+                self._extern_7z = sevenz
+            else:
+                self._extern_7z = Extern7z(sevenz)
 
     def init_console(self, console: Console):
         self.console = console
 
-    def print(self, s, *, overflow: str = "fold"):
+    def print(self, s, *, overflow: OverflowMethod = "fold"):
         self.console.print(s, overflow=overflow)
 
     def log(self, s: str, *, overflow: str = "fold", verbose: bool = True):
@@ -88,8 +114,8 @@ class Repacker(IRepacker):
     _exclude_list: list[str] = []
     _filelist: list[ComicFile] = []
 
-    def __init__(self, verbose: bool = True, console: Console = None):
-        super().__init__(verbose, console=console)
+    def __init__(self, verbose: bool = True, console: Console | None = None):
+        super().__init__(verbose, console=console, sevenz=None)
 
     def init_data(self, config_path: str, args: Namespace):
         try:
@@ -147,6 +173,18 @@ class Repacker(IRepacker):
         self._cache_dir = cache_dir_obj
         self._exclude_list = config["DEFAULT"]["Exclude"]
 
+        self._use_extern_7z = config["DEFAULT"]["UseExtern7z"]
+        if self._use_extern_7z:
+            sevenz_exec: str = config["DEFAULT"]["Extern7zExec"]
+            if (
+                check_if_path_string_valid(
+                    sevenz_exec, check_only=True, force_create=False
+                )
+                is None
+            ):
+                sevenz_exec = "7z"
+            self._extern_7z = Extern7z(sevenz_exec)
+
     def check_init_validity(self) -> InitValidityChecker:
         if self._input_dir is None:
             return InitValidityChecker(flag=False, name="输入目录")
@@ -176,15 +214,24 @@ class Repacker(IRepacker):
         return self._filelist
 
     def repack(self, file_t: ComicFile):
+        sevenz: Extern7z | None = None
+        if self._use_extern_7z:
+            sevenz = self._extern_7z
         single_repacker = SingleRepacker(
-            comic_file=file_t, console=self.console, verbose=self.verbose
+            comic_file=file_t,
+            console=self.console,
+            verbose=self.verbose,
+            sevenz=sevenz,
         )
         single_repacker.pack_folder()
 
     def print_list(self):
         def new_comic_path(file_t: ComicFile) -> Path:
             single_repacker = SingleRepacker(
-                comic_file=file_t, no_work=True, verbose=False, console=self.console
+                comic_file=file_t,
+                no_work=True,
+                verbose=False,
+                console=self.console,
             )
             comic_name: str = single_repacker.comic_name
             path: Path = file_t.dst_file.parent / f"{comic_name}"
@@ -203,7 +250,7 @@ class Repacker(IRepacker):
         remove_if_exists(self.output_dir, recreate=True)
 
     # 初始化路径并复制目录结构
-    def _init_path_obj(self, exclude=None) -> list[Path]:
+    def _init_path_obj(self, exclude=None) -> list[ComicFile]:
         # 目录表格绘制
         if exclude is None:
             exclude = []
@@ -244,9 +291,10 @@ class SingleRepacker(IRepacker):
         comic_file: ComicFile,
         no_work: bool = False,
         verbose: bool = True,
-        console: Console = None,
+        console: Console | None = None,
+        sevenz: GeneralPath | Extern7z = None,
     ):
-        super().__init__(verbose, console=console)
+        super().__init__(verbose, console=console, sevenz=sevenz)
 
         self._cache_dir = comic_file.cache_folder
         self._zip_file = comic_file.src_file
@@ -294,11 +342,16 @@ class SingleRepacker(IRepacker):
         self._comic_name = self._extractor.comic_file_name
 
     def _extract_archive(self) -> None:
-        unpack_archive_with_timestamp(
-            self._zip_file,
-            extract_dir=self.extract_dir,
-            filters=["html/", "image/"],
-        )
+        if self._use_extern_7z:
+            self._extern_7z.unpack_archive(
+                self._zip_file, extract_dir=self.extract_dir, no_root=False
+            )
+        else:
+            unpack_archive_with_timestamp(
+                self._zip_file,
+                extract_dir=self.extract_dir,
+                filters=["html/", "image/"],
+            )
 
     def _extract_images(self) -> None:
         for new_name, img_src in self._extractor.build_img_filelist(self.extract_dir):
@@ -347,11 +400,15 @@ class SingleRepacker(IRepacker):
 
         self._cbz_file = self._cbz_file.parent / f"{self.comic_name}.cbz"
         comic_base: Path = self._cbz_file.with_suffix("")
-        make_archive_threadsafe(
-            comic_base,
-            format="cbz",
-            root_dir=self._pack_from_dir,
-        )
+
+        if self._use_extern_7z:
+            self._extern_7z.make_archive(self._cbz_file, root_dir=self._pack_from_dir)
+        else:
+            make_archive_threadsafe(
+                comic_base,
+                format="cbz",
+                root_dir=self._pack_from_dir,
+            )
 
         cbz_path = self._cbz_file
 
