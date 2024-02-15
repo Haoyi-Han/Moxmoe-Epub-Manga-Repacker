@@ -1,8 +1,6 @@
 # 主程序引用库
 import os
-from pathlib import Path
 from contextlib import AbstractContextManager
-from types import TracebackType
 from argparse import ArgumentParser, Namespace, RawTextHelpFormatter
 
 # 程序显示引用库
@@ -14,7 +12,7 @@ from rich.traceback import install
 from rich.progress import Progress, TaskID
 
 from moe_utils.file_system import remove_if_exists
-from moe_utils.manga_repacker import IRepacker, Repacker
+from moe_utils.manga_repacker import ComicFile, IRepacker, Repacker
 from moe_utils.progress_bar import generate_progress_bar
 from moe_utils.taskbar_indicator import WinTaskbar, create_wintaskbar_object
 from moe_utils.terminal_ui import welcome_logo, welcome_panel
@@ -48,16 +46,10 @@ class ProgressController(AbstractContextManager):
         self.task = self.pb.add_task(description=self.description, total=self.total)
         return super().__enter__()
 
-    def __exit__(
-        self,
-        __exc_type: type[BaseException] | None,
-        __exc_value: BaseException | None,
-        __traceback: TracebackType | None,
-    ) -> bool | None:
+    def __exit__(self, *exc_details):
         self.pb.stop()
         if self.tb_imported:
             self.tb.reset_taskbar_progress()
-        return super().__exit__(__exc_type, __exc_value, __traceback)
 
     def update(self, i: int):
         self.pb.update(self.task, advance=1)
@@ -191,7 +183,7 @@ class Application(IRepacker):
 
     # 将主要执行过程封装，用于单线程或多线程时调用 20230429
     # 将执行过程提取到主函数外部 20230521
-    def work(self, file_t: Path):
+    def work(self, file_t: ComicFile):
         self.repacker.repack(file_t)
 
     # 主程序
