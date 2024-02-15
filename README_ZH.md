@@ -33,10 +33,12 @@ cd Moxmoe-Epub-Manga-Repacker
 
 ```toml
 [DEFAULT]
-InputDir =  "your input folder path"
-OutputDir = "your output folder path"
-CacheDir =  "your cache folder path"
+InputDir =  "path/to/your/input/folder"
+OutputDir = "path/to/your/output/folder"
+CacheDir =  "path/to/your/cache/folder"
 Exclude = [folders & files to exclude in the paths you provide]
+UseExtern7z = false
+Extern7zExec "path/to/your/7z/executable"
 ```
 
 将漫画文档（或整个文件夹）复制到该 `InputDir` 指向的文件夹。**注意！** 子文件夹和子文件的命名请避免使用除常见符号、字母、数字、汉字以外的特殊 Unicode 字符。

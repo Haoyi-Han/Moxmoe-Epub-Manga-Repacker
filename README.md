@@ -33,10 +33,12 @@ The project configuration file format is as follows:
 
 ```toml
 [DEFAULT]
-InputDir = "your input folder path"
-OutputDir = "your output folder path"
-CacheDir = "your cache folder path"
+InputDir =  "path/to/your/input/folder"
+OutputDir = "path/to/your/output/folder"
+CacheDir =  "path/to/your/cache/folder"
 Exclude = [folders & files to exclude in the paths you provide]
+UseExtern7z = false
+Extern7zExec "path/to/your/7z/executable"
 ```
 
 Copy the manga document (or entire folder) to the folder pointed to by `InputDir`. **Attention!** Please avoid using special Unicode characters other than common symbols, letters, numbers, and CJK characters in the naming of subfolders and files.
