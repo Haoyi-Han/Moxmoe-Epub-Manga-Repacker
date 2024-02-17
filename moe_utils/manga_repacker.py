@@ -1,12 +1,11 @@
-from io import TextIOWrapper
-import tomllib
-from pathlib import Path
-from argparse import Namespace
-from typing import NamedTuple
 import zipfile
+from argparse import Namespace
+from io import TextIOWrapper
+from pathlib import Path
+from typing import NamedTuple
 
+import tomllib
 from rich.console import Console, OverflowMethod
-
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -14,22 +13,22 @@ from tenacity import (
     stop_after_delay,
 )
 
+from .comic_info import ComicInfoExtractor
 from .file_system import (
     Extern7z,
     GeneralPath,
+    PrettyDirectoryTree,
     check_if_path_string_valid,
     copy_dir_struct,
-    copy_dir_struct_to_list,
     copy_dir_struct_ext_to_list,
+    copy_dir_struct_to_list,
     copy_file_timestamp,
     make_archive_threadsafe,
     remove_if_exists,
     unpack_archive_with_timestamp,
-    PrettyDirectoryTree,
 )
-
-from .terminal_ui import log as tui_log, PathTable
-from .comic_info import ComicInfoExtractor
+from .terminal_ui import PathTable
+from .terminal_ui import log as tui_log
 
 
 class ComicFile:

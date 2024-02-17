@@ -1,15 +1,15 @@
 # 主程序引用库
 import os
-from contextlib import AbstractContextManager
 from argparse import ArgumentParser, Namespace, RawTextHelpFormatter
+from contextlib import AbstractContextManager
+
+from rich.progress import Progress, TaskID
 
 # 程序显示引用库
 from rich.prompt import Prompt
 
 # 程序异常打印库
 from rich.traceback import install
-
-from rich.progress import Progress, TaskID
 
 from moe_utils.file_system import remove_if_exists
 from moe_utils.manga_repacker import ComicFile, IRepacker, Repacker

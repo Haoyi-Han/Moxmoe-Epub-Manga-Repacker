@@ -2,22 +2,22 @@ import os
 import shutil
 import subprocess
 import time
-from typing import Sequence
 import zipfile
 from pathlib import Path
+from typing import Sequence
 
-from rich.prompt import Prompt
 import filedate
+from rich.prompt import Prompt
 
 GeneralPath = str | os.PathLike | None
 GeneralPathUnwrapped = str | os.PathLike
 
 
-def make_path(path: GeneralPath) -> Path | None:
+def make_path(path: GeneralPath, resolve: bool = False) -> Path | None:
     if path is None:
         return None
     if isinstance(path, Path):
-        return path.resolve()
+        return path.resolve() if resolve else path
     try:
         path = Path(path).resolve()
         return path
@@ -25,8 +25,14 @@ def make_path(path: GeneralPath) -> Path | None:
         return None
 
 
-def make_paths(paths: Sequence[GeneralPath]) -> list[Path | None]:
-    return list(filter(lambda x: x is not None, map(make_path, paths)))
+def make_paths(
+    paths: Sequence[GeneralPath], resolve: bool = False
+) -> list[Path | None]:
+    return list(
+        filter(
+            lambda x: x is not None, map(lambda p: make_path(p, resolve=resolve), paths)
+        )
+    )
 
 
 def subprocess_quiet_run(args: list[str]):
@@ -190,7 +196,7 @@ class Extern7z:
         if root_dir is not None:
             _root_dir = make_path(root_dir)
             assert _root_dir is not None
-            filelist = make_paths(list(_root_dir.rglob("*.*")))
+            filelist = make_paths(list(_root_dir.rglob("*.*")), resolve=False)
 
         self._make_args_a(zipfile=_zipfile, filelist=filelist)
         sevenz_args = self.sevenz_a_args

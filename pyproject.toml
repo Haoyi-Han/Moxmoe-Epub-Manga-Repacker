@@ -30,3 +30,6 @@ priority = "default"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+select = ["I"]
