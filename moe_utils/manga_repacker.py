@@ -17,6 +17,7 @@ from .comic_info import ComicInfoExtractor
 from .file_system import (
     Extern7z,
     GeneralPath,
+    GeneralPathUnwrapped,
     PrettyDirectoryTree,
     check_if_path_string_valid,
     copy_dir_struct,
@@ -35,6 +36,7 @@ class ComicFile:
     src_file: Path
     dst_file: Path
     cache_folder: Path
+    relative_path: Path
 
     def __init__(
         self,
@@ -48,9 +50,9 @@ class ComicFile:
         assert out_dir is not None
         assert cache_dir is not None
         self.src_file = file_path
-        relative_path = file_path.relative_to(in_dir)
-        self.dst_file = out_dir / relative_path.with_suffix(".cbz")
-        self.cache_folder = cache_dir / relative_path.with_suffix("")
+        self.relative_path = file_path.relative_to(in_dir)
+        self.dst_file = out_dir / self.relative_path.with_suffix(".cbz")
+        self.cache_folder = cache_dir / self.relative_path.with_suffix("")
 
 
 class InitValidityChecker(NamedTuple):
@@ -86,17 +88,28 @@ class IRepacker:
         sevenz: Extern7z | GeneralPath = None,
     ):
         self.verbose = verbose
+
         if console is not None:
             self.init_console(console)
+
         if sevenz is not None:
-            self._use_extern_7z = True
-            if isinstance(sevenz, Extern7z):
-                self._extern_7z = sevenz
-            else:
-                self._extern_7z = Extern7z(sevenz)
+            self.init_sevenz(sevenz)
 
     def init_console(self, console: Console):
         self.console = console
+
+    def init_sevenz(self, sevenz: Extern7z | GeneralPathUnwrapped):
+        if isinstance(sevenz, Extern7z):
+            self._extern_7z = sevenz
+        elif isinstance(sevenz, GeneralPath):
+            self._extern_7z = Extern7z(sevenz)
+
+        if self._extern_7z is None:
+            self._use_extern_7z = False
+        elif not self._extern_7z.check_sevenz_availability():
+            self._use_extern_7z = False
+        else:
+            self._use_extern_7z = True
 
     def print(self, s, *, overflow: OverflowMethod = "fold"):
         self.console.print(s, overflow=overflow)
@@ -112,6 +125,7 @@ class Repacker(IRepacker):
     _cache_dir: Path | None = None
     _exclude_list: list[str] = []
     _filelist: list[ComicFile] = []
+    _faillist: list[ComicFile] = []
 
     def __init__(self, verbose: bool = True, console: Console | None = None):
         super().__init__(verbose, console=console, sevenz=None)
@@ -172,17 +186,20 @@ class Repacker(IRepacker):
         self._cache_dir = cache_dir_obj
         self._exclude_list = config["DEFAULT"]["Exclude"]
 
-        self._use_extern_7z = config["DEFAULT"]["UseExtern7z"]
-        if self._use_extern_7z:
+        def _set_use_extern_7z_switch() -> bool:
+            use_extern_7z: bool = config["DEFAULT"]["UseExtern7z"]
+            if not use_extern_7z:
+                return False
             sevenz_exec: str = config["DEFAULT"]["Extern7zExec"]
-            if (
-                check_if_path_string_valid(
-                    sevenz_exec, check_only=True, force_create=False
-                )
-                is None
-            ):
-                sevenz_exec = "7z"
             self._extern_7z = Extern7z(sevenz_exec)
+            use_extern_7z = self._extern_7z.check_sevenz_availability()
+            if use_extern_7z:
+                return True
+            self._extern_7z = Extern7z()
+            use_extern_7z = self._extern_7z.check_sevenz_availability()
+            return use_extern_7z
+
+        self._use_extern_7z = _set_use_extern_7z_switch()
 
     def check_init_validity(self) -> InitValidityChecker:
         if self._input_dir is None:
@@ -212,17 +229,25 @@ class Repacker(IRepacker):
     def filelist(self) -> list[ComicFile]:
         return self._filelist
 
+    @property
+    def faillist(self) -> list[ComicFile]:
+        return self._faillist
+
     def repack(self, file_t: ComicFile):
         sevenz: Extern7z | None = None
         if self._use_extern_7z:
             sevenz = self._extern_7z
-        single_repacker = SingleRepacker(
-            comic_file=file_t,
-            console=self.console,
-            verbose=self.verbose,
-            sevenz=sevenz,
-        )
-        single_repacker.pack_folder()
+        try:
+            single_repacker = SingleRepacker(
+                comic_file=file_t,
+                console=self.console,
+                verbose=self.verbose,
+                sevenz=sevenz,
+            )
+            single_repacker.pack_folder()
+        except Exception as e:
+            self.log(f"[red]错误[/]：{e}")
+            self._faillist.append(file_t)
 
     def print_list(self):
         def new_comic_path(file_t: ComicFile) -> Path:

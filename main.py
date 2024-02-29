@@ -153,6 +153,11 @@ class Application(IRepacker):
                 for i, file_t in enumerate(self.repacker.filelist):
                     self.work(file_t)
                     pctrl.update(i)
+        if self.repacker.faillist:
+            self.log("[yellow]提示：以下文件转换失败！")
+            indent: str = " " * 11
+            for file_t in self.repacker.faillist:
+                self.print(f"{indent}{file_t.relative_path}")
 
     # 键盘Ctrl+C中断命令优化
     def keyboard_handler(self, signum, frame):

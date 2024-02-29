@@ -1,3 +1,4 @@
+from rich import print as rich_print
 from rich.box import DOUBLE
 from rich.panel import Panel
 from rich.table import Table
@@ -35,3 +36,7 @@ class PathTable(Table):
 
 def log(console, s: str, overflow="fold"):
     console.print(f"[blue][{curr_time_format()}][/] {s}", overflow=overflow)
+
+
+def pure_log(s: str):
+    rich_print(f"[blue][{curr_time_format()}][/] {s}")
