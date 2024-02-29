@@ -1,15 +1,14 @@
 from rich.progress import (
-    Progress,
-    Task,
-    ProgressColumn,
-    TextColumn,
     BarColumn,
     MofNCompleteColumn,
+    Progress,
+    ProgressColumn,
     SpinnerColumn,
+    Task,
+    TextColumn,
     TimeElapsedColumn,
     TimeRemainingColumn,
 )
-
 from rich.text import Text
 
 

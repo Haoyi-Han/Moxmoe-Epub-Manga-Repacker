@@ -1,6 +1,6 @@
 import importlib
-import time
 import platform
+import time
 from functools import wraps
 
 

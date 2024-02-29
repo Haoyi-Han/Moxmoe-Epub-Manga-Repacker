@@ -1,13 +1,13 @@
 [tool.poetry]
 name = "moxmoe-epub-manga-repacker"
-version = "0.5.0"
+version = "0.5.3"
 description = "A manga repacker of EPUB comics downloaded from vol.moe/mox.moe/kox.moe."
 authors = ["Haoyi HAN <54799247+Haoyi-Han@users.noreply.github.com>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-rich = "^13.7.0"
+rich = "^13.7.1"
 lxml = "^5.1.0"
 tenacity = "^8.2.3"
 filedate = "^3.0"
@@ -15,10 +15,10 @@ filedate = "^3.0"
 
 [tool.poetry.group.dev.dependencies]
 pywin32 = "^306"
-comtypes = "^1.3.0"
-setuptools = "^69.1.0"
+comtypes = "^1.3.1"
+setuptools = "^69.1.1"
 cx-freeze = "^6.15.15"
-nuitka = "^2.0.2"
+nuitka = "^2.0.5"
 zstandard = "^0.22.0"
 
 
@@ -30,3 +30,6 @@ priority = "default"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+select = ["I"]

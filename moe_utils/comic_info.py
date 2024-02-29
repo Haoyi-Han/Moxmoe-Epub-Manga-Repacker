@@ -54,7 +54,7 @@ class MoxBook:
 
     @staticmethod
     def _volume_count(vol: str) -> int:
-        return int(vol.replace("卷", ""))
+        return int(re.sub(r"卷(\d+).*", r"\1", vol))
 
     @staticmethod
     def _volume_count_str(vol: str) -> str:

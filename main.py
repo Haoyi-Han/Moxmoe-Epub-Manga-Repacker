@@ -1,15 +1,15 @@
 # 主程序引用库
 import os
-from contextlib import AbstractContextManager
 from argparse import ArgumentParser, Namespace, RawTextHelpFormatter
+from contextlib import AbstractContextManager
+
+from rich.progress import Progress, TaskID
 
 # 程序显示引用库
 from rich.prompt import Prompt
 
 # 程序异常打印库
 from rich.traceback import install
-
-from rich.progress import Progress, TaskID
 
 from moe_utils.file_system import remove_if_exists
 from moe_utils.manga_repacker import ComicFile, IRepacker, Repacker
@@ -153,6 +153,11 @@ class Application(IRepacker):
                 for i, file_t in enumerate(self.repacker.filelist):
                     self.work(file_t)
                     pctrl.update(i)
+        if self.repacker.faillist:
+            self.log("[yellow]提示：以下文件转换失败！")
+            indent: str = " " * 11
+            for file_t in self.repacker.faillist:
+                self.print(f"{indent}{file_t.relative_path}")
 
     # 键盘Ctrl+C中断命令优化
     def keyboard_handler(self, signum, frame):

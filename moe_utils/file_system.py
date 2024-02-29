@@ -2,22 +2,25 @@ import os
 import shutil
 import subprocess
 import time
-from typing import Sequence
 import zipfile
 from pathlib import Path
+from typing import Sequence
 
-from rich.prompt import Prompt
 import filedate
+from rich import print
+from rich.prompt import Prompt
+
+from .terminal_ui import pure_log
 
 GeneralPath = str | os.PathLike | None
 GeneralPathUnwrapped = str | os.PathLike
 
 
-def make_path(path: GeneralPath) -> Path | None:
+def make_path(path: GeneralPath, resolve: bool = False) -> Path | None:
     if path is None:
         return None
     if isinstance(path, Path):
-        return path.resolve()
+        return path.resolve() if resolve else path
     try:
         path = Path(path).resolve()
         return path
@@ -25,8 +28,23 @@ def make_path(path: GeneralPath) -> Path | None:
         return None
 
 
-def make_paths(paths: Sequence[GeneralPath]) -> list[Path | None]:
-    return list(filter(lambda x: x is not None, map(make_path, paths)))
+def make_paths(
+    paths: Sequence[GeneralPath], resolve: bool = False
+) -> list[Path | None]:
+    return list(
+        filter(
+            lambda x: x is not None, map(lambda p: make_path(p, resolve=resolve), paths)
+        )
+    )
+
+
+def subprocess_pipe_run(args: list[str]):
+    subprocess.run(
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    )
 
 
 def subprocess_quiet_run(args: list[str]):
@@ -145,6 +163,14 @@ class Extern7z:
     def __init__(self, sevenz_exec: GeneralPathUnwrapped = "7z"):
         self.sevenz_exec = str(sevenz_exec)
 
+    def check_sevenz_availability(self) -> bool:
+        try:
+            subprocess_pipe_run([self.sevenz_exec, "--help"])
+            return True
+        except Exception:
+            pure_log(f'[yellow]警告：设定的 7z 路径或别称 "{self.sevenz_exec}" 不合法或不存在，将使用默认模块处理压缩文档。')
+            return False
+
     def _make_args_a(
         self, zipfile: GeneralPathUnwrapped, filelist: Sequence[GeneralPath]
     ):
@@ -190,7 +216,7 @@ class Extern7z:
         if root_dir is not None:
             _root_dir = make_path(root_dir)
             assert _root_dir is not None
-            filelist = make_paths(list(_root_dir.rglob("*.*")))
+            filelist = make_paths(list(_root_dir.rglob("*.*")), resolve=False)
 
         self._make_args_a(zipfile=_zipfile, filelist=filelist)
         sevenz_args = self.sevenz_a_args
@@ -238,12 +264,12 @@ def check_if_path_string_valid(
         path = Path(path_string)
         if not path.exists():
             if check_only:
-                print(f"警告：{path_string} 路径指向的文件夹不存在。")
+                print(f"[red]警告[/]：{path_string} 路径指向的文件夹不存在。")
                 return None
 
             if not force_create:
                 create_folder = Prompt.ask(
-                    f"警告：{path_string} 路径指向的文件夹不存在，您想要创建吗？",
+                    f"[red]警告[/]：{path_string} 路径指向的文件夹不存在，您想要创建吗？",
                     choices=["y", "n"],
                     default="n",
                 )
@@ -256,15 +282,15 @@ def check_if_path_string_valid(
             path.mkdir(parents=True, exist_ok=True)
             return path
         elif path.is_file():
-            print("警告：该路径指向一个已存在的文件。")
+            print("[red]警告[/]：该路径指向一个已存在的文件。")
             return None
         elif not os.access(path, os.R_OK):
-            print("警告：该路径指向一个已存在的文件夹，但访问受限或被拒绝。")
+            print("[red]警告[/]：该路径指向一个已存在的文件夹，但访问受限或被拒绝。")
             return None
         else:
             return path
     except Exception as e:
-        print(f"警告：{e}")
+        print(f"[red]警告[/]：{e}")
         return None
 
 
@@ -324,9 +350,9 @@ class PrettyDirectoryTree:
         pointers = [self.tee] * (len(paths) - 1) + [self.last]
         for pointer, path in zip(pointers, paths):
             if first:
-                yield prefix + f"\033[34m{path}\033[0m"
+                yield f"{prefix}[blue]{path}[/]"
             else:
-                yield prefix + pointer + f"\033[34m{path}\033[0m"
+                yield f"{prefix}{pointer}[blue]{path}[/]"
             if isinstance(paths[path], dict):  # extend the prefix and recurse:
                 if first:
                     extension = ""
