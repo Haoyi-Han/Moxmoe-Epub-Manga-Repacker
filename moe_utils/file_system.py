@@ -216,7 +216,8 @@ class Extern7z:
         if root_dir is not None:
             _root_dir = make_path(root_dir)
             assert _root_dir is not None
-            filelist = make_paths(list(_root_dir.rglob("*.*")), resolve=False)
+            # 7z 不能接受过长路径，因此改为传递整个文件夹
+            filelist = make_paths([_root_dir], resolve=False)
 
         self._make_args_a(zipfile=_zipfile, filelist=filelist)
         sevenz_args = self.sevenz_a_args

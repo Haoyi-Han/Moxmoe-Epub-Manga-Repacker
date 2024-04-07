@@ -8,6 +8,8 @@ from .utils import cn2an_simple, sanitize_filename
 
 MoxBookType: list[str] = ["其他", "單行本", "番外篇", "連載話"]
 
+all_volume_pattern: str = r"全[01234567890零一二三四五六七八九十百千萬億万亿壹貳叄肆伍陸柒捌玖拾佰仟贰叁陆]+[卷話冊]"
+
 
 class MoxBook:
     """
@@ -46,7 +48,11 @@ class MoxBook:
 
     @staticmethod
     def _full_count(vol: str) -> int:
-        return cn2an_simple(vol.replace("全", "").replace("卷", ""))
+        vol = vol.replace("全", "")
+        for vol_mark in "卷話冊":
+            if vol_mark in vol:
+                vol = vol.replace(vol_mark, "")
+        return cn2an_simple(vol)
 
     @staticmethod
     def _full_count_str(vol: str) -> str:
@@ -73,7 +79,7 @@ class MoxBook:
     def number(self) -> str:
         pattern_actions = {
             r"卷\d+": MoxBook._volume_count_str,
-            r"全[01234567890零一二三四五六七八九十百千萬億万亿壹貳叄肆伍陸柒捌玖拾佰仟贰叁陆]+卷": MoxBook._full_count_str,
+            all_volume_pattern: MoxBook._full_count_str,
             r"話(\d+?-\d+)": MoxBook._serial_count,
         }
 
@@ -87,7 +93,7 @@ class MoxBook:
     def count(self) -> int:
         pattern_actions = {
             r"卷\d+": MoxBook._volume_count,
-            r"全[01234567890零一二三四五六七八九十百千萬億万亿壹貳叄肆伍陸柒捌玖拾佰仟贰叁陆]+卷": MoxBook._full_count,
+            all_volume_pattern: MoxBook._full_count,
             r"話(\d+?-\d+)": MoxBook._serial_diff_count,
         }
 

@@ -425,6 +425,12 @@ class SingleRepacker(IRepacker):
         self._cbz_file = self._cbz_file.parent / f"{self.comic_name}.cbz"
         comic_base: Path = self._cbz_file.with_suffix("")
 
+        # 由于文档的时间戳随获取方式有别，故以文档内封面图片的时间戳为准
+        comic_cover: Path = self._pack_from_dir / "cover.jpg"
+
+        # 修改漫画文件夹时间戳为原 EPUB 文档内部的时间戳
+        copy_file_timestamp(comic_cover, self._pack_from_dir)
+
         if self._use_extern_7z:
             self._extern_7z.make_archive(self._cbz_file, root_dir=self._pack_from_dir)
         else:
@@ -437,8 +443,6 @@ class SingleRepacker(IRepacker):
         cbz_path = self._cbz_file
 
         # 修改新建立的 CBZ 文件时间戳为原 EPUB 文档内部的时间戳
-        # 由于文档的时间戳随获取方式有别，故以文档内封面图片的时间戳为准
-        comic_cover: Path = self._pack_from_dir / "cover.jpg"
         copy_file_timestamp(comic_cover, cbz_path)
 
         self.log(f"{self.comic_name} => [green]打包完成")
