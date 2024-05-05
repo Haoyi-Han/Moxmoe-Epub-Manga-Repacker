@@ -10,6 +10,11 @@ MoxBookType: list[str] = ["其他", "單行本", "番外篇", "連載話"]
 
 all_volume_pattern: str = r"全[01234567890零一二三四五六七八九十百千萬億万亿壹貳叄肆伍陸柒捌玖拾佰仟贰叁陆]+[卷話冊]"
 
+comic_ns_map = {
+    'xsd': 'http://www.w3.org/2001/XMLSchema',
+    'xsi': 'http://www.w3.org/2001/XMLSchema-instance'
+}
+
 
 class MoxBook:
     """
@@ -72,7 +77,11 @@ class MoxBook:
 
     @staticmethod
     def _serial_diff_count(vol: str) -> int:
-        start, end = vol.replace("話", "").strip().split("-")
+        matches = re.match(r"話(\d{3})-(\d{3})", vol.strip())
+        if not matches:
+            return 1
+        start = matches.group(1)
+        end = matches.group(2)
         return int(end) - int(start) + 1
 
     @property
@@ -163,7 +172,7 @@ class ComicInfo:
     def _build_xml(self, parent: etree._Element, data: dict):
         for key, value in data.items():
             if isinstance(value, dict):
-                element = etree.Element(key, attrib=None, nsmap=None)
+                element = etree.Element(key, attrib=None, nsmap=comic_ns_map)
                 parent.append(element)
                 self._build_xml(element, value)
             elif isinstance(value, list):
