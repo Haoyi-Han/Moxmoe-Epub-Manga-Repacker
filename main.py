@@ -64,6 +64,7 @@ class Application(IRepacker):
     repacker: Repacker
     parser: ArgumentParser
     args: Namespace
+    pause: bool = False
 
     def __init__(self, verbose: bool = True):
         self.pb = generate_progress_bar()
@@ -158,6 +159,7 @@ class Application(IRepacker):
             indent: str = " " * 11
             for file_t in self.repacker.faillist:
                 self.print(f"{indent}{file_t.relative_path}")
+            self.pause = True
 
     # 键盘Ctrl+C中断命令优化
     def keyboard_handler(self, signum, frame):
@@ -231,6 +233,9 @@ class Application(IRepacker):
             self.repacker.clean_cache()
 
         self.log("[green]所有转换任务完成！")
+
+        if self.pause:
+            input("请按任意键继续...") 
 
 
 if __name__ == "__main__":
