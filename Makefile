@@ -1,10 +1,11 @@
 # Declare variables
 PYTHON = python
-NUITKA = -m nuitka
+NUITKA = -m nuitka3
 PRODUCT_NAME = "Moxmoe Repacker"
 PROGRAM_NAME = "moxmoe-repacker"
 WORK_DIR = ./
 BUILD_DIR = ./build
+BUILD_SYS ?= "poetry"
 ICON_DIR = ./favicon.ico
 FLAGS = --show-scons --show-memory --show-progress --onefile --nofollow-imports --follow-import-to=moe_utils --output-filename=$(PROGRAM_NAME) --output-dir=$(BUILD_DIR) --enable-plugin="upx"
 MAIN_SCRIPT = ./main.py
@@ -42,17 +43,17 @@ help: ## Show this help message
 ifeq ($(OS), Windows_NT)
 	@./make.ps1 help
 else
-	@echo "$ANNOUNCE_BODY"
-	printf "\033[36m%-30s %s\033[0m\n" "help" "Show this help message."
-	printf "\033[36m%-30s %s\033[0m\n" "build" "Build python project to one-file executable."
-	printf "\033[36m%-30s %s\033[0m\n" "clean" "Clean build directory."
+	@echo "$$ANNOUNCE_BODY"
+	@printf "\033[36m%-30s %s\033[0m\n" "help" "Show this help message."
+	@printf "\033[36m%-30s %s\033[0m\n" "build [BUILD_SYS=poetry, pixi]" "Build python project to one-file executable."
+	@printf "\033[36m%-30s %s\033[0m\n" "clean" "Clean build directory."
 endif
 
 build: ## Build python project to one-file executable
 ifeq ($(OS), Windows_NT)
-	@./make.ps1 build
+	@./make.ps1 build -e $(BUILD_SYS)
 else
-	$(PYTHON) $(NUITKA) $(FLAGS) $(MAIN_SCRIPT)
+	$(BUILD_SYS) run $(PYTHON) $(NUITKA) $(FLAGS) $(MAIN_SCRIPT)
 endif
 	
 clean: ## Clean build directory

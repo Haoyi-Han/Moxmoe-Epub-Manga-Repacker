@@ -57,7 +57,18 @@ Wait for the program to finish running. Afterward, you can enter the folder poin
 
 ## Build
 
-It is recommended to use `Nuitka` to build the executable application. On the Windows platform, run `make.ps1 build`; on Unix platforms, run `make build`. Afterward, the built one-file program can be found in the `build` folder.
+It is recommended to use `poetry` or `pixi` to set up the Python working environment.
+
+It is recommended to use `Nuitka` to build the executable application.
+
+- Windows platform: Run different commands based on the package management tool.
+  - Poetry: `make.ps1 build -e poetry` (the `-e poetry` can be omitted)
+  - Pixi: `make.ps1 build -e pixi` or `pixi run build`
+- Unix platform: Run different commands based on the package management tool.
+  - Poetry: `make build BUILD_SYS=poetry` (the `BUILD_SYS=poetry` can be omitted)
+  - Pixi: `make build BUILD_SYS=pixi` or `pixi run build`
+
+The built single-file program can then be found in the `build` folder.
 
 You can use `make.ps1 help` or `make help` to view the supported command help.
 

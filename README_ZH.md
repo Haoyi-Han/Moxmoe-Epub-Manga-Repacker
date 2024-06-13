@@ -57,7 +57,18 @@ python main.py
 
 ## 构建
 
-推荐使用 `Nuitka` 构建可执行文件应用程序。Windows 平台下请运行 `make.ps1 build`，Unix 平台下请运行 `make build`，随后在 `build` 文件夹可以得到构建后的单文件程序。
+推荐使用 `poetry` 或 `pixi` 搭建 Python 工作环境。
+
+推荐使用 `Nuitka` 构建可执行文件应用程序。
+
+- Windows 平台：根据不同的包管理工具，运行不同命令。
+  - Poetry: `make.ps1 build -e poetry`（`-e poetry` 可省略）
+  - Pixi: `make.ps1 build -e pixi` 或 `pixi run build`
+- Unix 平台：根据不同的包管理工具，运行不同命令。
+  - Poetry: `make build BUILD_SYS=poetry`（`BUILD_SYS=poetry` 可省略）
+  - Pixi: `make build BUILD_SYS=pixi` 或 `pixi run build`
+ 
+随后在 `build` 文件夹可以得到构建后的单文件程序。
 
 你可以通过 `make.ps1 help` 或 `make help` 来查看支持的命令帮助。
 
