@@ -16,7 +16,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
-dependencies = ["rich", "lxml", "tenacity", "filedate"]
+dependencies = ["rich", "lxml", "tenacity", "filedate", "nuitka"]
 
 [tool.poetry]
 name = "moxmoe-epub-manga-repacker"
@@ -83,7 +83,7 @@ build = "pwsh ./make.ps1 build -e pixi"
 # requires = ["poetry-core"]
 # build-backend = "poetry.core.masonry.api"
 
-# Uncomment the following two lines if you choose to use Pixi
+# Uncomment the following two lines if you choose to use Pixi or Uv
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
