@@ -235,7 +235,7 @@ class Application(IRepacker):
         self.log("[green]所有转换任务完成！")
 
         if self.pause:
-            input("请按任意键继续...") 
+            input("请按任意键继续...")
 
 
 if __name__ == "__main__":

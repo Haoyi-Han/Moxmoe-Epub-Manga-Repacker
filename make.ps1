@@ -1,7 +1,11 @@
 param(
     [Parameter(Mandatory=$true)]
     [ValidateSet("help", "build", "clean")]
-    [string]$target
+    [string]$target,
+    [CmdletBinding()]
+    [ValidateSet("poetry", "pixi")]
+    [Alias("e")]
+    [string]$env = "poetry"
 )
 
 # Declare variables
@@ -34,7 +38,7 @@ Moxmoe Repacker Makefile ${VERSION}
 function Make-Help {
 	Write-Host "${ANNOUNCE_BODY}"
 	Write-Host -ForegroundColor Cyan ("{0,-30} {1}" -f "help", "Show this help message.")
-	Write-Host -ForegroundColor Cyan ("{0,-30} {1}" -f "build", "Build python project to one-file executable.")
+	Write-Host -ForegroundColor Cyan ("{0,-30} {1}" -f "build [-e poetry, pixi]", "Build python project to one-file executable.")
 	Write-Host -ForegroundColor Cyan ("{0,-30} {1}" -f "clean", "Clean build directory.")
 }
 
@@ -56,7 +60,7 @@ function Make-Build {
         "--windows-product-version=${VERSION}",
         "${MAIN_SCRIPT}"
     )
-	& python -m nuitka @NUITKA_FLAGS
+	& ${env} run python -m nuitka @NUITKA_FLAGS
 }
 
 ## Clean build directory

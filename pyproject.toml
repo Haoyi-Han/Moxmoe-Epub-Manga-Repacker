@@ -1,25 +1,44 @@
+[project]
+name = "moxmoe-epub-manga-repacker"
+version = "0.5.6"
+description = "A manga repacker of EPUB comics downloaded from vol.moe/mox.moe/kox.moe."
+authors = [
+    { name = "Haoyi HAN", email = "54799247+Haoyi-Han@users.noreply.github.com" },
+]
+license = "MIT"
+requires-python = ">=3.10"
+classifiers = [
+    "Environment :: Console",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = ["rich", "lxml", "tenacity", "filedate", "nuitka"]
+
 [tool.poetry]
 name = "moxmoe-epub-manga-repacker"
-version = "0.5.5"
+version = "0.5.6"
 description = "A manga repacker of EPUB comics downloaded from vol.moe/mox.moe/kox.moe."
 authors = ["Haoyi HAN <54799247+Haoyi-Han@users.noreply.github.com>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-rich = "^13.7.1"
-lxml = "^5.2.1"
-tenacity = "^8.2.3"
-filedate = "^3.0"
+rich = "*"
+lxml = "*"
+tenacity = "*"
+filedate = "*"
 
 
 [tool.poetry.group.dev.dependencies]
-pywin32 = "^306"
-comtypes = "^1.4.0"
-setuptools = "^69.2.0"
-cx-freeze = "^6.15.16"
-nuitka = "^2.1.5"
-zstandard = "^0.22.0"
+pywin32 = "*"
+comtypes = "*"
+setuptools = "*"
+nuitka = "*"
+zstandard = "*"
 
 
 [[tool.poetry.source]]
@@ -27,9 +46,50 @@ name = "mirrors"
 url = "https://pypi.tuna.tsinghua.edu.cn/simple/"
 priority = "primary"
 
+
+[tool.pixi.project]
+channels = ["conda-forge"]
+platforms = ["win-64", "linux-64", "osx-arm64", "osx-64"]
+
+[tool.pixi.dependencies]
+python = ">=3.10"
+rich = "*"
+lxml = "*"
+tenacity = "*"
+nuitka = "*"
+
+
+[tool.pixi.pypi-dependencies]
+filedate = "*"
+
+
+[tool.pixi.target.win-64.host-dependencies]
+pywin32 = "*"
+comtypes = "*"
+
+
+[tool.pixi.tasks]
+main = "python ./main.py"
+clean = "python ./main.py -cl"
+build = "make build BUILD_SYS=pixi"
+
+
+[tool.pixi.target.win-64.tasks]
+build = "pwsh ./make.ps1 build -e pixi"
+
+
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+# Uncomment the following two lines if you choose to use Poetry
+# requires = ["poetry-core"]
+# build-backend = "poetry.core.masonry.api"
+
+# Uncomment the following two lines if you choose to use Pixi or Uv
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+# Uncomment the following two lines if you choose to use Hatch
+# requires = ["hatchling"]
+# build-backend = "hatchling.build"
 
 [tool.ruff]
 select = ["I"]
