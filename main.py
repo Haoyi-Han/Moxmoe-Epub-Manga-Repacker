@@ -1,6 +1,6 @@
 # 主程序引用库
 import os
-from argparse import ArgumentParser, Namespace, RawTextHelpFormatter
+from argparse import ArgumentParser, Namespace
 from contextlib import AbstractContextManager
 
 from rich.progress import Progress, TaskID
@@ -10,6 +10,9 @@ from rich.prompt import Prompt
 
 # 程序异常打印库
 from rich.traceback import install
+
+# 程序命令行帮助美化
+from rich_argparse import RawDescriptionRichHelpFormatter
 
 from moe_utils.file_system import remove_if_exists
 from moe_utils.manga_repacker import ComicFile, IRepacker, Repacker
@@ -84,54 +87,40 @@ class Application(IRepacker):
 
     def _init_parser(self):
         # 命令行参数列表 20231230
+        # 命令行参数归纳整理 20240804
+        args_metadata = [
+            ("-i", "--input-dir", str, None, "Input Directory Path"),
+            ("-o", "--output-dir", str, None, "Output Directory Path"),
+            ("-cc", "--cache-dir", str, None, "Cache Directory Path"),
+            ("-cl", "--clean-all", "store_true", None, "Clean Output and Cache files"),
+            ("-l", "--list", "store_true", None, "List documents without conversion"),
+            (
+                "-nt",
+                "--no-taskbar",
+                "store_true",
+                None,
+                "Disable Taskbar Progress Display",
+            ),
+            ("-nl", "--no-logo", "store_true", None, "Disable Logo"),
+            ("-np", "--no-progress", "store_true", None, "Disable Progress Bar"),
+            ("-nv", "--no-verbose", "store_true", None, "Disable Verbose Output"),
+            ("-q", "--quiet", "store_true", None, "Quiet Mode"),
+            ("-kc", "--keep-cache", "store_true", None, "Keep cache folder when exit"),
+        ]
+
         self.parser = ArgumentParser(
-            description=welcome_logo, formatter_class=RawTextHelpFormatter
+            description=welcome_logo, formatter_class=RawDescriptionRichHelpFormatter
         )
-        self.parser.add_argument(
-            "-i", "--input-dir", type=str, default=None, help="Input Directory Path"
-        )
-        self.parser.add_argument(
-            "-o", "--output-dir", type=str, default=None, help="Output Directory Path"
-        )
-        self.parser.add_argument(
-            "-cc", "--cache-dir", type=str, default=None, help="Cache Directory Path"
-        )
-        self.parser.add_argument(
-            "-cl",
-            "--clean-all",
-            action="store_true",
-            help="Clean Output and Cache files",
-        )
-        self.parser.add_argument(
-            "-l",
-            "--list",
-            action="store_true",
-            help="Only list documents without conversion",
-        )
-        self.parser.add_argument(
-            "-nt",
-            "--no-taskbar",
-            action="store_true",
-            help="Disable Taskbar Progress Display",
-        )
-        self.parser.add_argument(
-            "-nl", "--no-logo", action="store_true", help="Disable Logo"
-        )
-        self.parser.add_argument(
-            "-np", "--no-progress", action="store_true", help="Disable Progress Bar"
-        )
-        self.parser.add_argument(
-            "-nv", "--no-verbose", action="store_true", help="Disable Verbose Output"
-        )
-        self.parser.add_argument(
-            "-q", "--quiet", action="store_true", help="Quiet Mode"
-        )
-        self.parser.add_argument(
-            "-kc",
-            "--keep-cache",
-            action="store_true",
-            help="Keep cache folder when exit",
-        )
+
+        for short_opt, long_opt, arg_type, default, help_text in args_metadata:
+            if arg_type == "store_true":
+                self.parser.add_argument(
+                    short_opt, long_opt, action=arg_type, help=help_text
+                )
+            else:
+                self.parser.add_argument(
+                    short_opt, long_opt, type=arg_type, default=default, help=help_text
+                )
 
     def _convert(self):
         # 采用 rich.progress 实现进度条效果

@@ -20,25 +20,26 @@ dependencies = ["rich", "lxml", "tenacity", "filedate", "nuitka"]
 
 [tool.poetry]
 name = "moxmoe-epub-manga-repacker"
-version = "0.5.6"
+version = "0.5.7"
 description = "A manga repacker of EPUB comics downloaded from vol.moe/mox.moe/kox.moe."
 authors = ["Haoyi HAN <54799247+Haoyi-Han@users.noreply.github.com>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
 python = "^3.10"
-rich = "*"
-lxml = "*"
-tenacity = "*"
-filedate = "*"
+rich = "^13.7.1"
+lxml = "^5.2.2"
+tenacity = "^9.0.0"
+filedate = "^3.0"
+rich-argparse = "^1.5.2"
 
 
 [tool.poetry.group.dev.dependencies]
 pywin32 = "*"
-comtypes = "*"
-setuptools = "*"
-nuitka = "*"
-zstandard = "*"
+comtypes = "^1.4.5"
+setuptools = "^72.1.0"
+nuitka = "^2.4.5"
+zstandard = "^0.23.0"
 
 
 [[tool.poetry.source]]
@@ -57,6 +58,7 @@ rich = "*"
 lxml = "*"
 tenacity = "*"
 nuitka = "*"
+rich-argparse = ">=1.5.2,<2"
 
 
 [tool.pixi.pypi-dependencies]
@@ -70,6 +72,7 @@ comtypes = "*"
 
 [tool.pixi.tasks]
 main = "python ./main.py"
+help = "python ./main.py -h"
 clean = "python ./main.py -cl"
 build = "make build BUILD_SYS=pixi"
 
