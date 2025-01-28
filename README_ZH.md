@@ -33,39 +33,41 @@ cd Moxmoe-Epub-Manga-Repacker
 
 ```toml
 [DEFAULT]
-InputDir =  "path/to/your/input/folder"
-OutputDir = "path/to/your/output/folder"
-CacheDir =  "path/to/your/cache/folder"
-Exclude = [folders & files to exclude in the paths you provide]
-UseExtern7z = false
-Extern7zExec "path/to/your/7z/executable"
+input_dir =  "path/to/your/input/folder"
+output_dir = "path/to/your/output/folder"
+cache_dir =  "path/to/your/cache/folder"
+exclude = [folders & files to exclude in the paths you provide]
+enable_extern_7z_use = false
+extern_7z_executable_path = "path/to/your/7z/executable"
 ```
 
-将漫画文档（或整个文件夹）复制到该 `InputDir` 指向的文件夹。**注意！** 子文件夹和子文件的命名请避免使用除常见符号、字母、数字、汉字以外的特殊 Unicode 字符。
+将漫画文档（或整个文件夹）复制到该 `input_dir` 指向的文件夹。**注意！** 子文件夹和子文件的命名请避免使用除常见符号、字母、数字、汉字以外的特殊 Unicode 字符。
 
 运行`main.py`脚本：
 
 ```shell
-python main.py
+python main.py convert
 ```
 
 程序运行时截图效果如下（并非最新版本，供大致参考）。
 
 ![](./img/2023-04-18.png)
 
-等待程序运行结束。此后您可以进入 `OutputDir` 指向的文件夹，检查转换结果。
+等待程序运行结束。此后您可以进入 `output_dir` 指向的文件夹，检查转换结果。
 
 ## 构建
 
-推荐使用 `poetry` 或 `pixi` 搭建 Python 工作环境。
+推荐使用 `uv`、`poetry` 或 `pixi` 搭建 Python 工作环境。
 
 推荐使用 `Nuitka` 构建可执行文件应用程序。
 
 - Windows 平台：根据不同的包管理工具，运行不同命令。
-  - Poetry: `make.ps1 build -e poetry`（`-e poetry` 可省略）
+  - Uv: `make.ps1 build -e uv`（`-e uv` 可省略）
+  - Poetry: `make.ps1 build -e poetry`
   - Pixi: `make.ps1 build -e pixi` 或 `pixi run build`
 - Unix 平台：根据不同的包管理工具，运行不同命令。
-  - Poetry: `make build BUILD_SYS=poetry`（`BUILD_SYS=poetry` 可省略）
+  - Uv: `make build BUILD_SYS=uv`（`BUILD_SYS=uv` 可省略）
+  - Poetry: `make build BUILD_SYS=poetry`
   - Pixi: `make build BUILD_SYS=pixi` 或 `pixi run build`
  
 随后在 `build` 文件夹可以得到构建后的单文件程序。

@@ -1,7 +1,7 @@
 [DEFAULT]
-InputDir =  "D:/Work/Dev/Moxmoe/Release/input"
-OutputDir = "D:/Work/Dev/Moxmoe/Release/output"
-CacheDir =  "D:/Work/Dev/Moxmoe/Release/input/cache"
-Exclude = [".vscode", ".idea", "venv", "test", "moe_utils", "img", "build"]
-UseExtern7z = false
-Extern7zExec = "7z"
+input_dir = "path/to/your/input/folder"
+output_dir = "path/to/your/output/folder"
+cache_dir = "path/to/your/cache/folder"
+exclude = [".vscode", ".idea", "venv", "test", "moe_utils", "img", "build"]
+enable_extern_7z_use = true
+extern_7z_executable_path = "7z"

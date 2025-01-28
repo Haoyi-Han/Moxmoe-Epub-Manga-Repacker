@@ -163,7 +163,7 @@ class Extern7z:
     def __init__(self, sevenz_exec: GeneralPathUnwrapped = "7z"):
         self.sevenz_exec = str(sevenz_exec)
 
-    def check_sevenz_availability(self) -> bool:
+    def check_7z_availability(self) -> bool:
         try:
             subprocess_pipe_run([self.sevenz_exec, "--help"])
             return True

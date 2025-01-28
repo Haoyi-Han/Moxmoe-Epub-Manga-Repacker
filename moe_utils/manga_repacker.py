@@ -6,6 +6,7 @@ from typing import NamedTuple
 
 import tomllib
 from rich.console import Console, OverflowMethod
+from rich.prompt import Prompt
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -106,7 +107,7 @@ class IRepacker:
 
         if self._extern_7z is None:
             self._use_extern_7z = False
-        elif not self._extern_7z.check_sevenz_availability():
+        elif not self._extern_7z.check_7z_availability():
             self._use_extern_7z = False
         else:
             self._use_extern_7z = True
@@ -130,38 +131,20 @@ class Repacker(IRepacker):
     def __init__(self, verbose: bool = True, console: Console | None = None):
         super().__init__(verbose, console=console, sevenz=None)
 
-    def init_data(self, config_path: str, args: Namespace):
+    def init_data(self, config_path: str = "config.toml", init_filelist_flag: bool = True):
         try:
             self.init_from_config(config_path)
-            self.init_from_arguments(args.input_dir, args.output_dir, args.cache_dir)
 
             checked: InitValidityChecker = self.check_init_validity()
             if checked.flag is False:
                 raise InvalidPathStringException(path_type=checked.name)
 
-            self.init_filelist()
+            if init_filelist_flag:
+                self.init_filelist()
 
         except InvalidPathStringException:
             ...
 
-    def init_from_arguments(
-        self, input_dir: str | None, output_dir: str | None, cache_dir: str | None
-    ):
-        input_dir_obj: Path | None = check_if_path_string_valid(
-            input_dir, check_only=True, force_create=False
-        )
-        output_dir_obj: Path | None = check_if_path_string_valid(
-            output_dir, check_only=False, force_create=False
-        )
-        cache_dir_obj: Path | None = check_if_path_string_valid(
-            cache_dir, check_only=False, force_create=True
-        )
-        if input_dir_obj is not None:
-            self._input_dir = input_dir_obj
-        if output_dir_obj is not None:
-            self._output_dir = output_dir_obj
-        if cache_dir_obj is not None:
-            self._cache_dir = cache_dir_obj
 
     def init_from_config(self, config_path: str):
         self.log("[yellow]开始初始化程序...")
@@ -172,31 +155,31 @@ class Repacker(IRepacker):
             config = tomllib.load(cf)
 
         input_dir_obj: Path | None = check_if_path_string_valid(
-            config["DEFAULT"]["InputDir"], check_only=True, force_create=False
+            config["DEFAULT"]["input_dir"], check_only=True, force_create=False
         )
         output_dir_obj: Path | None = check_if_path_string_valid(
-            config["DEFAULT"]["OutputDir"], check_only=False, force_create=False
+            config["DEFAULT"]["output_dir"], check_only=False, force_create=False
         )
         cache_dir_obj: Path | None = check_if_path_string_valid(
-            config["DEFAULT"]["CacheDir"], check_only=False, force_create=True
+            config["DEFAULT"]["cache_dir"], check_only=False, force_create=True
         )
 
         self._input_dir = input_dir_obj
         self._output_dir = output_dir_obj
         self._cache_dir = cache_dir_obj
-        self._exclude_list = config["DEFAULT"]["Exclude"]
+        self._exclude_list = config["DEFAULT"]["exclude"]
 
         def _set_use_extern_7z_switch() -> bool:
-            use_extern_7z: bool = config["DEFAULT"]["UseExtern7z"]
+            use_extern_7z: bool = config["DEFAULT"]["enable_extern_7z_use"]
             if not use_extern_7z:
                 return False
-            sevenz_exec: str = config["DEFAULT"]["Extern7zExec"]
+            sevenz_exec: str = config["DEFAULT"]["extern_7z_executable_path"]
             self._extern_7z = Extern7z(sevenz_exec)
-            use_extern_7z = self._extern_7z.check_sevenz_availability()
+            use_extern_7z = self._extern_7z.check_7z_availability()
             if use_extern_7z:
                 return True
             self._extern_7z = Extern7z()
-            use_extern_7z = self._extern_7z.check_sevenz_availability()
+            use_extern_7z = self._extern_7z.check_7z_availability()
             return use_extern_7z
 
         self._use_extern_7z = _set_use_extern_7z_switch()
@@ -266,11 +249,12 @@ class Repacker(IRepacker):
         PrettyDirectoryTree(fake_list)
 
     def clean_cache(self, verbose: bool = True):
-        self.log("[yellow]开始清理缓存文件...", verbose=verbose)
         remove_if_exists(self.cache_dir)
 
+    def clean_input(self, verbose: bool = True):
+        remove_if_exists(self.input_dir, recreate=True)
+
     def clean_output(self, verbose: bool = True):
-        self.log("[yellow]开始清理输出文件...", verbose=verbose)
         remove_if_exists(self.output_dir, recreate=True)
 
     # 初始化路径并复制目录结构
@@ -281,8 +265,12 @@ class Repacker(IRepacker):
         if self.verbose:
             self.print(PathTable(self.input_dir, self.output_dir, self.cache_dir))
         # 文件列表抽取
-        self.clean_cache(verbose=False)
-        self.clean_output(verbose=False)
+        clean_cache_flag = Prompt.ask("请选择是否清空缓存文件夹", choices=["y", "n"], default="y")
+        clean_output_flag = Prompt.ask("请选择是否清空输出文件夹", choices=["y", "n"], default="y")
+        if clean_cache_flag:
+            self.clean_cache(verbose=False)
+        if clean_output_flag:
+            self.clean_output(verbose=False)
 
         raw_filelist: list[Path] = copy_dir_struct_ext_to_list(self.input_dir)
         filelist: list[ComicFile] = [
