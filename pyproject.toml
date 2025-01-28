@@ -1,6 +1,6 @@
 [project]
 name = "moxmoe-epub-manga-repacker"
-version = "0.5.6"
+version = "0.6.0"
 description = "A manga repacker of EPUB comics downloaded from vol.moe/mox.moe/kox.moe."
 authors = [
     { name = "Haoyi HAN", email = "54799247+Haoyi-Han@users.noreply.github.com" },
@@ -16,29 +16,23 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
-dependencies = ["rich", "lxml", "tenacity", "filedate", "nuitka"]
+dependencies = [
+    "filedate>=3.0",
+    "lxml>=5.3.0",
+    "rich>=13.9.4",
+    "tenacity>=9.0.0",
+    "typer>=0.15.1",
+]
 
 [tool.poetry]
-name = "moxmoe-epub-manga-repacker"
-version = "0.5.7"
-description = "A manga repacker of EPUB comics downloaded from vol.moe/mox.moe/kox.moe."
-authors = ["Haoyi HAN <54799247+Haoyi-Han@users.noreply.github.com>"]
-license = "MIT"
-
-[tool.poetry.dependencies]
-python = "^3.10"
-rich = "^13.7.1"
-lxml = "^5.2.2"
-tenacity = "^9.0.0"
-filedate = "^3.0"
-rich-argparse = "^1.5.2"
-
+package-mode = false
+requires-poetry = ">=2.0"
 
 [tool.poetry.group.dev.dependencies]
 pywin32 = "*"
-comtypes = "^1.4.5"
+comtypes = "^1.4.9"
 setuptools = "^72.1.0"
-nuitka = "^2.4.5"
+nuitka = "^2.6.1"
 zstandard = "^0.23.0"
 
 
@@ -58,7 +52,6 @@ rich = "*"
 lxml = "*"
 tenacity = "*"
 nuitka = "*"
-rich-argparse = ">=1.5.2,<2"
 
 
 [tool.pixi.pypi-dependencies]
@@ -71,28 +64,31 @@ comtypes = "*"
 
 
 [tool.pixi.tasks]
-main = "python ./main.py"
-help = "python ./main.py -h"
-clean = "python ./main.py -cl"
+main = "python main.py"
+help = "python main.py --help"
+clean = "python main.py clean --all"
 build = "make build BUILD_SYS=pixi"
 
 
 [tool.pixi.target.win-64.tasks]
-build = "pwsh ./make.ps1 build -e pixi"
+build = "pwsh make.ps1 build -e pixi"
 
 
-[build-system]
+# [build-system]
+# Comment all if you choose to use Uv
+
 # Uncomment the following two lines if you choose to use Poetry
 # requires = ["poetry-core"]
 # build-backend = "poetry.core.masonry.api"
 
-# Uncomment the following two lines if you choose to use Pixi or Uv
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
-
-# Uncomment the following two lines if you choose to use Hatch
-# requires = ["hatchling"]
-# build-backend = "hatchling.build"
+# Uncomment the following two lines if you choose to use Pixi
+# requires = ["setuptools >= 64"]
+# build-backend = "setuptools.build_meta"
 
 [tool.ruff]
-select = ["I"]
+lint.select = ["I"]
+line-length = 120
+
+[dependency-groups]
+dev = ["nuitka>=2.6.1"]
+win-64 = ["comtypes>=1.4.9", "pywin32>=308"]

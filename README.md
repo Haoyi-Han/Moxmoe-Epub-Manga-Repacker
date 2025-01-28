@@ -33,39 +33,41 @@ The project configuration file format is as follows:
 
 ```toml
 [DEFAULT]
-InputDir =  "path/to/your/input/folder"
-OutputDir = "path/to/your/output/folder"
-CacheDir =  "path/to/your/cache/folder"
-Exclude = [folders & files to exclude in the paths you provide]
-UseExtern7z = false
-Extern7zExec "path/to/your/7z/executable"
+input_dir =  "path/to/your/input/folder"
+output_dir = "path/to/your/output/folder"
+cache_dir =  "path/to/your/cache/folder"
+exclude = [folders & files to exclude in the paths you provide]
+enable_extern_7z_use = false
+extern_7z_executable_path = "path/to/your/7z/executable"
 ```
 
-Copy the manga document (or entire folder) to the folder pointed to by `InputDir`. **Attention!** Please avoid using special Unicode characters other than common symbols, letters, numbers, and CJK characters in the naming of subfolders and files.
+Copy the manga document (or entire folder) to the folder pointed to by `input_dir`. **Attention!** Please avoid using special Unicode characters other than common symbols, letters, numbers, and CJK characters in the naming of subfolders and files.
 
 Run the `main.py` script:
 
 ```shell
-python main.py
+python main.py convert
 ```
 
 The screenshot of the program during execution is as follows (not the latest version, for rough reference).
 
 ![](./img/2023-04-18.png)
 
-Wait for the program to finish running. Afterward, you can enter the folder pointed to by `OutputDir` to check the conversion results.
+Wait for the program to finish running. Afterward, you can enter the folder pointed to by `output_dir` to check the conversion results.
 
 ## Build
 
-It is recommended to use `poetry` or `pixi` to set up the Python working environment.
+It is recommended to use `uv`, `poetry` or `pixi` to set up the Python working environment.
 
 It is recommended to use `Nuitka` to build the executable application.
 
 - Windows platform: Run different commands based on the package management tool.
-  - Poetry: `make.ps1 build -e poetry` (the `-e poetry` can be omitted)
+  - Uv: `make.ps1 build -e uv` (the `-e uv` can be omitted)
+  - Poetry: `make.ps1 build -e poetry`
   - Pixi: `make.ps1 build -e pixi` or `pixi run build`
 - Unix platform: Run different commands based on the package management tool.
-  - Poetry: `make build BUILD_SYS=poetry` (the `BUILD_SYS=poetry` can be omitted)
+  - Uv: `make build BUILD_SYS=uv` (the `BUILD_SYS=uv` can be omitted)
+  - Poetry: `make build BUILD_SYS=poetry`
   - Pixi: `make build BUILD_SYS=pixi` or `pixi run build`
 
 The built single-file program can then be found in the `build` folder.
