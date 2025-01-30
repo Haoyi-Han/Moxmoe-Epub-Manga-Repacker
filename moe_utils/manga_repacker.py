@@ -1,5 +1,6 @@
 import zipfile
 from argparse import Namespace
+from fnmatch import fnmatch
 from io import TextIOWrapper
 from pathlib import Path
 from typing import NamedTuple
@@ -25,6 +26,7 @@ from .file_system import (
     copy_dir_struct_ext_to_list,
     copy_dir_struct_to_list,
     copy_file_timestamp,
+    is_dir_nonexistent_or_empty,
     make_archive_threadsafe,
     remove_if_exists,
     unpack_archive_with_timestamp,
@@ -147,8 +149,6 @@ class Repacker(IRepacker):
 
 
     def init_from_config(self, config_path: str):
-        self.log("[yellow]开始初始化程序...")
-
         # 用 tomllib 替代 ConfigParser 进行解析 20231207
         config_file = Path(config_path)
         with config_file.open("rb") as cf:
@@ -265,12 +265,22 @@ class Repacker(IRepacker):
         if self.verbose:
             self.print(PathTable(self.input_dir, self.output_dir, self.cache_dir))
         # 文件列表抽取
-        clean_cache_flag = Prompt.ask("请选择是否清空缓存文件夹", choices=["y", "n"], default="y")
-        clean_output_flag = Prompt.ask("请选择是否清空输出文件夹", choices=["y", "n"], default="y")
+        if (self._cache_dir is None) or is_dir_nonexistent_or_empty(self._cache_dir):
+            clean_cache_flag = False
+        else:
+            clean_cache_flag = Prompt.ask("请选择是否清空缓存文件夹", choices=["y", "n"], default="y")
+        if (self._output_dir is None) or is_dir_nonexistent_or_empty(self._output_dir):
+            clean_output_flag = False
+        else:
+            clean_output_flag = Prompt.ask("请选择是否清空输出文件夹", choices=["y", "n"], default="y")
         if clean_cache_flag:
             self.clean_cache(verbose=False)
         if clean_output_flag:
             self.clean_output(verbose=False)
+        if not self._cache_dir.exists():
+            self._cache_dir.mkdir(parents=True, exist_ok=True)
+        if not self._output_dir.exists():
+            self._output_dir.mkdir(parents=True, exist_ok=True)
 
         raw_filelist: list[Path] = copy_dir_struct_ext_to_list(self.input_dir)
         filelist: list[ComicFile] = [
@@ -414,7 +424,11 @@ class SingleRepacker(IRepacker):
         comic_base: Path = self._cbz_file.with_suffix("")
 
         # 由于文档的时间戳随获取方式有别，故以文档内封面图片的时间戳为准
-        comic_cover: Path = self._pack_from_dir / "cover.jpg"
+        # comic_cover: Path = self._pack_from_dir / "cover.jpg"
+        comic_cover = next(
+            f for f in self._pack_from_dir.glob("*")
+            if fnmatch(f.name, "[Cc][Oo][Vv][Ee][Rr].[Jj][Pp][Gg]")
+        )
 
         # 修改漫画文件夹时间戳为原 EPUB 文档内部的时间戳
         copy_file_timestamp(comic_cover, self._pack_from_dir)
