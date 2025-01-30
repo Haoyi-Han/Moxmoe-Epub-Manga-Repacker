@@ -11,6 +11,7 @@ from rich import print
 from rich.prompt import Prompt
 
 from .terminal_ui import pure_log
+from .utils import is_NT
 
 GeneralPath = str | os.PathLike | None
 GeneralPathUnwrapped = str | os.PathLike
@@ -48,12 +49,19 @@ def subprocess_pipe_run(args: list[str]):
 
 
 def subprocess_quiet_run(args: list[str]):
-    subprocess.run(
-        args,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
-        creationflags=subprocess.CREATE_NO_WINDOW,
-    )
+    if is_NT():
+        subprocess.run(
+            args,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+    else:
+        subprocess.run(
+            args,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.STDOUT,
+        )
 
 
 # 在指定目录下复制空目录结构
@@ -105,10 +113,11 @@ def suffix_change(
 
 
 def remove_if_exists(path: str, *, recreate: bool = False):
-    if Path(path).is_dir():
+    path_obj = make_path(path)
+    if path_obj.is_dir():
         shutil.rmtree(os.fspath(path), ignore_errors=True)
     if recreate:
-        os.mkdir(path)
+        path_obj.mkdir(parents=True, exist_ok=True)
 
 
 # shutil.make_archive() 不是线程安全的，因此考虑用以下函数代替
@@ -351,9 +360,9 @@ class PrettyDirectoryTree:
         pointers = [self.tee] * (len(paths) - 1) + [self.last]
         for pointer, path in zip(pointers, paths):
             if first:
-                yield f"{prefix}[blue]{path}[/]"
+                yield f"{prefix}[cyan]{path}[/]"
             else:
-                yield f"{prefix}{pointer}[blue]{path}[/]"
+                yield f"{prefix}{pointer}[cyan]{path}[/]"
             if isinstance(paths[path], dict):  # extend the prefix and recurse:
                 if first:
                     extension = ""
@@ -368,3 +377,18 @@ class PrettyDirectoryTree:
         print()
         for line in self._tree(self._path_dict):
             print(line)
+
+
+def is_dir_empty(folder: GeneralPathUnwrapped) -> bool:
+    path = make_path(folder)
+    if path is None or not path.is_dir():
+        return False
+    return not any(path.iterdir())
+
+def is_dir_nonexistent_or_empty(folder: GeneralPathUnwrapped) -> bool:
+    path = make_path(folder)
+    if path is None or not path.is_dir():
+        return False
+    if not path.exists():
+        return True
+    return is_dir_empty(folder)

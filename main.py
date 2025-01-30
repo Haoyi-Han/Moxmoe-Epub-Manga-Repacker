@@ -3,23 +3,23 @@ import os
 from contextlib import AbstractContextManager
 from typing import Annotated
 
-from rich.console import Console, OverflowMethod
-from rich.progress import Progress, TaskID
+# 程序命令行帮助美化
+import typer
 
 # 程序显示引用库
+from rich.console import Console, OverflowMethod
+from rich.progress import Progress, TaskID
 from rich.prompt import Prompt
 
 # 程序异常打印库
 from rich.traceback import install
 
-# 程序命令行帮助美化
-import typer
-
 from moe_utils.file_system import remove_if_exists
-from moe_utils.manga_repacker import ComicFile, IRepacker, Repacker
+from moe_utils.manga_repacker import ComicFile, Repacker
 from moe_utils.progress_bar import generate_progress_bar
 from moe_utils.taskbar_indicator import WinTaskbar, create_wintaskbar_object
-from moe_utils.terminal_ui import welcome_logo, welcome_panel, log as tui_log
+from moe_utils.terminal_ui import log as tui_log
+from moe_utils.terminal_ui import welcome_panel
 
 install(show_locals=True)
 
@@ -227,6 +227,7 @@ def convert(
         tprint(welcome_panel)
 
     # 初始化转换器对象
+    tlog("[yellow]开始初始化程序...")
     repacker = Repacker(verbose=verbose, console=console)
     repacker.init_data(config_path=config)
 
@@ -289,7 +290,7 @@ def clean(
 @typer_app.command(help="Display the version information of the application")
 def version():
     author = "Haoyi HAN"
-    version = "0.6.0"
+    version = "0.6.1"
     year = 2025
     print(f"moxmoe repacker v{version}, by {author}, {year}")
 

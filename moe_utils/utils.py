@@ -1,13 +1,16 @@
 import datetime
 import os
+import platform
 import stat
 
-# from bs4 import BeautifulSoup
+
+def is_NT() -> bool:
+    return platform.system().lower().startswith("win")
 
 
 # 系统当前时间格式化
 def curr_time_format():
-    return datetime.datetime.now().strftime("%H:%M:%S")
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 # 清除文件只读属性并重试回调函数

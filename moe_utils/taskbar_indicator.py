@@ -1,11 +1,8 @@
 import importlib
-import platform
 import time
 from functools import wraps
 
-
-def is_NT() -> bool:
-    return platform.system().lower().startswith("win")
+from .utils import is_NT
 
 
 def on_windows(func):
