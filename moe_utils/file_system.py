@@ -8,7 +8,9 @@ from typing import Sequence
 
 import filedate
 from rich import print
+from rich.console import Console
 from rich.prompt import Prompt
+from rich.tree import Tree
 
 from .terminal_ui import pure_log
 from .utils import is_NT
@@ -29,14 +31,8 @@ def make_path(path: GeneralPath, resolve: bool = False) -> Path | None:
         return None
 
 
-def make_paths(
-    paths: Sequence[GeneralPath], resolve: bool = False
-) -> list[Path | None]:
-    return list(
-        filter(
-            lambda x: x is not None, map(lambda p: make_path(p, resolve=resolve), paths)
-        )
-    )
+def make_paths(paths: Sequence[GeneralPath], resolve: bool = False) -> list[Path | None]:
+    return list(filter(lambda x: x is not None, map(lambda p: make_path(p, resolve=resolve), paths)))
 
 
 def subprocess_pipe_run(args: list[str]):
@@ -84,9 +80,7 @@ def copy_dir_struct(inPath: str, outPath: str, exclude=None):
 # 创建文件列表（按原目录结构）
 # 使用 glob() 方法代替，本函数弃用
 def copy_dir_struct_to_list(root: str) -> list[Path]:
-    return [
-        Path(path, name) for path, subdirs, files in os.walk(root) for name in files
-    ]
+    return [Path(path, name) for path, subdirs, files in os.walk(root) for name in files]
 
 
 # 创建EPUB文件列表（按原目录结构）
@@ -102,9 +96,7 @@ def copy_dir_struct_ext_to_list(root: str, ext=".epub") -> list[Path]:
 
 # 修改EPUB扩展名为ZIP
 # 调整shutil.unpack_archive()参数后，解压不再需要依赖扩展名，本函数弃用
-def suffix_change(
-    filelist: list[Path], inType: str = ".epub", outType: str = ".zip"
-) -> list:
+def suffix_change(filelist: list[Path], inType: str = ".epub", outType: str = ".zip") -> list:
     for i, filepath in enumerate(filelist):
         if filepath.suffix == inType:
             filepath = filepath.rename(filepath.with_suffix(outType))
@@ -177,12 +169,12 @@ class Extern7z:
             subprocess_pipe_run([self.sevenz_exec, "--help"])
             return True
         except Exception:
-            pure_log(f'[yellow]警告：设定的 7z 路径或别称 "{self.sevenz_exec}" 不合法或不存在，将使用默认模块处理压缩文档。')
+            pure_log(
+                f'[yellow]警告：设定的 7z 路径或别称 "{self.sevenz_exec}" 不合法或不存在，将使用默认模块处理压缩文档。'
+            )
             return False
 
-    def _make_args_a(
-        self, zipfile: GeneralPathUnwrapped, filelist: Sequence[GeneralPath]
-    ):
+    def _make_args_a(self, zipfile: GeneralPathUnwrapped, filelist: Sequence[GeneralPath]):
         self.sevenz_a_args = [
             self.sevenz_exec,
             "a",
@@ -369,14 +361,28 @@ class PrettyDirectoryTree:
                 else:
                     extension = self.branch if pointer == self.tee else self.space
                     # i.e. space because last, └── , above so no more │
-                yield from self._tree(
-                    paths[path], prefix=prefix + extension, first=False
-                )
+                yield from self._tree(paths[path], prefix=prefix + extension, first=False)
 
     def _print_tree(self):
         print()
         for line in self._tree(self._path_dict):
             print(line)
+
+# 采用 rich.tree 实现目录树打印 20250131
+def print_dir_tree(path_list: list[Path], console: Console):
+    tree = Tree("", guide_style="bold bright_blue", hide_root=True)
+    for path in path_list:
+        parts = path.parts
+        branch = tree
+        for part in parts[:-1]:
+            if not any(child.label == part for child in branch.children):
+                branch = branch.add(part, style="magenta", guide_style="blue")
+            else:
+                branch = next(child for child in branch.children if child.label == part)
+        if not any(child.label == parts[-1] for child in branch.children):
+            branch.add(parts[-1], style="green", guide_style="blue")
+
+    console.print(tree)
 
 
 def is_dir_empty(folder: GeneralPathUnwrapped) -> bool:
@@ -384,6 +390,7 @@ def is_dir_empty(folder: GeneralPathUnwrapped) -> bool:
     if path is None or not path.is_dir():
         return False
     return not any(path.iterdir())
+
 
 def is_dir_nonexistent_or_empty(folder: GeneralPathUnwrapped) -> bool:
     path = make_path(folder)

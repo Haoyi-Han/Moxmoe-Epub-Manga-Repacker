@@ -1,5 +1,4 @@
 import zipfile
-from argparse import Namespace
 from fnmatch import fnmatch
 from io import TextIOWrapper
 from pathlib import Path
@@ -20,7 +19,6 @@ from .file_system import (
     Extern7z,
     GeneralPath,
     GeneralPathUnwrapped,
-    PrettyDirectoryTree,
     check_if_path_string_valid,
     copy_dir_struct,
     copy_dir_struct_ext_to_list,
@@ -28,11 +26,11 @@ from .file_system import (
     copy_file_timestamp,
     is_dir_nonexistent_or_empty,
     make_archive_threadsafe,
+    print_dir_tree,
     remove_if_exists,
     unpack_archive_with_timestamp,
 )
-from .terminal_ui import PathTable
-from .terminal_ui import log as tui_log
+from .terminal_ui import DynamicLogger, PathTable, tui_log, tui_print
 
 
 class ComicFile:
@@ -89,11 +87,14 @@ class IRepacker:
         *,
         console: Console | None = None,
         sevenz: Extern7z | GeneralPath = None,
+        dlogger: DynamicLogger | None = None,
     ):
         self.verbose = verbose
+        self.dlogger = dlogger
 
         if console is not None:
             self.init_console(console)
+            self.status = self.console.status("")
 
         if sevenz is not None:
             self.init_sevenz(sevenz)
@@ -115,11 +116,10 @@ class IRepacker:
             self._use_extern_7z = True
 
     def print(self, s, *, overflow: OverflowMethod = "fold"):
-        self.console.print(s, overflow=overflow)
+        tui_print(self.console, s, overflow=overflow)
 
-    def log(self, s: str, *, overflow: str = "fold", verbose: bool = True):
-        if self.verbose and verbose:
-            tui_log(self.console, s, overflow=overflow)
+    def log(self, s: str, *, overflow: OverflowMethod = "fold"):
+        tui_log(self.console, s, overflow=overflow, verbose=self.verbose)
 
 
 class Repacker(IRepacker):
@@ -130,10 +130,10 @@ class Repacker(IRepacker):
     _filelist: list[ComicFile] = []
     _faillist: list[ComicFile] = []
 
-    def __init__(self, verbose: bool = True, console: Console | None = None):
-        super().__init__(verbose, console=console, sevenz=None)
+    def __init__(self, verbose: bool = True, console: Console | None = None, dlogger: DynamicLogger | None = None):
+        super().__init__(verbose, console=console, sevenz=None, dlogger=dlogger)
 
-    def init_data(self, config_path: str = "config.toml", init_filelist_flag: bool = True):
+    def init_data(self, config_path: str = "config.toml", init_filelist_flag: bool = True, ignore_clean: bool = False):
         try:
             self.init_from_config(config_path)
 
@@ -142,11 +142,10 @@ class Repacker(IRepacker):
                 raise InvalidPathStringException(path_type=checked.name)
 
             if init_filelist_flag:
-                self.init_filelist()
+                self.init_filelist(ignore_clean=ignore_clean)
 
         except InvalidPathStringException:
             ...
-
 
     def init_from_config(self, config_path: str):
         # 用 tomllib 替代 ConfigParser 进行解析 20231207
@@ -193,8 +192,8 @@ class Repacker(IRepacker):
             return InitValidityChecker(flag=False, name="缓存目录")
         return InitValidityChecker(flag=True, name="")
 
-    def init_filelist(self):
-        self._filelist = self._init_path_obj(exclude=self._exclude_list)
+    def init_filelist(self, ignore_clean: bool = False):
+        self._filelist = self._init_path_obj(exclude=self._exclude_list, ignore_clean=ignore_clean)
 
     @property
     def input_dir(self) -> str:
@@ -226,10 +225,11 @@ class Repacker(IRepacker):
                 console=self.console,
                 verbose=self.verbose,
                 sevenz=sevenz,
+                dlogger=self.dlogger,
             )
             single_repacker.pack_folder()
         except Exception as e:
-            self.log(f"[red]错误[/]：{e}")
+            self.log(f"[red]⚠️ 错误[/]：{e}")
             self._faillist.append(file_t)
 
     def print_list(self):
@@ -239,6 +239,7 @@ class Repacker(IRepacker):
                 no_work=True,
                 verbose=False,
                 console=self.console,
+                dlogger=self.dlogger,
             )
             comic_name: str = single_repacker.comic_name
             path: Path = file_t.dst_file.parent / f"{comic_name}"
@@ -246,7 +247,7 @@ class Repacker(IRepacker):
             return relative_path
 
         fake_list: list[Path] = list(map(new_comic_path, self.filelist))
-        PrettyDirectoryTree(fake_list)
+        print_dir_tree(fake_list, self.console)
 
     def clean_cache(self, verbose: bool = True):
         remove_if_exists(self.cache_dir)
@@ -258,29 +259,30 @@ class Repacker(IRepacker):
         remove_if_exists(self.output_dir, recreate=True)
 
     # 初始化路径并复制目录结构
-    def _init_path_obj(self, exclude=None) -> list[ComicFile]:
+    def _init_path_obj(self, exclude=None, ignore_clean: bool = False) -> list[ComicFile]:
         # 目录表格绘制
         if exclude is None:
             exclude = []
         if self.verbose:
             self.print(PathTable(self.input_dir, self.output_dir, self.cache_dir))
         # 文件列表抽取
-        if (self._cache_dir is None) or is_dir_nonexistent_or_empty(self._cache_dir):
-            clean_cache_flag = False
-        else:
-            clean_cache_flag = Prompt.ask("请选择是否清空缓存文件夹", choices=["y", "n"], default="y")
-        if (self._output_dir is None) or is_dir_nonexistent_or_empty(self._output_dir):
-            clean_output_flag = False
-        else:
-            clean_output_flag = Prompt.ask("请选择是否清空输出文件夹", choices=["y", "n"], default="y")
-        if clean_cache_flag:
-            self.clean_cache(verbose=False)
-        if clean_output_flag:
-            self.clean_output(verbose=False)
-        if not self._cache_dir.exists():
-            self._cache_dir.mkdir(parents=True, exist_ok=True)
-        if not self._output_dir.exists():
-            self._output_dir.mkdir(parents=True, exist_ok=True)
+        if not ignore_clean:
+            if (self._cache_dir is None) or is_dir_nonexistent_or_empty(self._cache_dir):
+                clean_cache_flag = False
+            else:
+                clean_cache_flag = Prompt.ask("请选择是否清空缓存文件夹", choices=["y", "n"], default="y")
+            if (self._output_dir is None) or is_dir_nonexistent_or_empty(self._output_dir):
+                clean_output_flag = False
+            else:
+                clean_output_flag = Prompt.ask("请选择是否清空输出文件夹", choices=["y", "n"], default="y")
+            if clean_cache_flag:
+                self.clean_cache(verbose=False)
+            if clean_output_flag:
+                self.clean_output(verbose=False)
+            if not self._cache_dir.exists():
+                self._cache_dir.mkdir(parents=True, exist_ok=True)
+            if not self._output_dir.exists():
+                self._output_dir.mkdir(parents=True, exist_ok=True)
 
         raw_filelist: list[Path] = copy_dir_struct_ext_to_list(self.input_dir)
         filelist: list[ComicFile] = [
@@ -292,10 +294,10 @@ class Repacker(IRepacker):
             )
             for f in raw_filelist
         ]
-        self.log("[green]已完成文件列表抽取。")
+        self.log("[green]✅ 已完成文件列表抽取。")
         # 目录结构复制
         copy_dir_struct(self.input_dir, self.output_dir, exclude=exclude)
-        self.log("[green]已完成目录结构复制。")
+        self.log("[green]✅ 已完成目录结构复制。")
         return filelist
 
 
@@ -315,8 +317,9 @@ class SingleRepacker(IRepacker):
         verbose: bool = True,
         console: Console | None = None,
         sevenz: GeneralPath | Extern7z = None,
+        dlogger: DynamicLogger | None = None,
     ):
-        super().__init__(verbose, console=console, sevenz=sevenz)
+        super().__init__(verbose, console=console, sevenz=sevenz, dlogger=dlogger)
 
         self._cache_dir = comic_file.cache_folder
         self._zip_file = comic_file.src_file
@@ -348,9 +351,7 @@ class SingleRepacker(IRepacker):
 
     # 解压前单独访问 opf 文件获取元数据
     # https://stackoverflow.com/questions/20601796/how-to-open-an-unicode-text-file-inside-a-zip
-    def _extract_opf_from_epub(
-        self, epub_file: str | Path, opf_name: str = "vol.opf"
-    ) -> str:
+    def _extract_opf_from_epub(self, epub_file: str | Path, opf_name: str = "vol.opf") -> str:
         with zipfile.ZipFile(str(epub_file), "r") as zip_ref:
             with zip_ref.open(opf_name, "r") as opf_file:
                 text: str = ""
@@ -365,9 +366,7 @@ class SingleRepacker(IRepacker):
 
     def _extract_archive(self) -> None:
         if self._use_extern_7z:
-            self._extern_7z.unpack_archive(
-                self._zip_file, extract_dir=self.extract_dir, no_root=False
-            )
+            self._extern_7z.unpack_archive(self._zip_file, extract_dir=self.extract_dir, no_root=False)
         else:
             unpack_archive_with_timestamp(
                 self._zip_file,
@@ -395,11 +394,11 @@ class SingleRepacker(IRepacker):
     # 单个压缩包根据HTML文件中的图片地址进行提取
     # 拆分为多个小函数以提高可读性 20231212
     def _load_zip_img(self) -> Path:
-        self.log(f"[yellow]开始解析 {self._zip_file.stem}")
+        self.status.update(f"[yellow]⏳ 开始解析 {self._zip_file.stem}")
         self._analyse_archive()
         self._extract_archive()
 
-        self.log(f"{self.comic_name} => [yellow]开始提取")
+        self.status.update(f"⏳ {self.comic_name} => [yellow]开始提取")
         self._extract_images()
 
         img_dir = self.extract_dir / "image"
@@ -408,7 +407,7 @@ class SingleRepacker(IRepacker):
         comic_xml_path = img_dir / "ComicInfo.xml"
         self._export_comicinfo_xml(comic_xml_path)
 
-        self.log(f"{self.comic_name} => [green]提取完成")
+        self.dlogger.update_log(f"✅ {self.comic_name} => [green]提取完成")
         return img_dir
 
     # 打包成压缩包并重命名
@@ -418,16 +417,14 @@ class SingleRepacker(IRepacker):
         stop=(stop_after_attempt(5) | stop_after_delay(1.5)),
     )
     def pack_folder(self) -> Path:
-        self.log(f"{self.comic_name} => [yellow]开始打包")
+        self.status.update(f"⏳ {self.comic_name} => [yellow]开始打包")
 
         self._cbz_file = self._cbz_file.parent / f"{self.comic_name}.cbz"
         comic_base: Path = self._cbz_file.with_suffix("")
 
         # 由于文档的时间戳随获取方式有别，故以文档内封面图片的时间戳为准
-        # comic_cover: Path = self._pack_from_dir / "cover.jpg"
         comic_cover = next(
-            f for f in self._pack_from_dir.glob("*")
-            if fnmatch(f.name, "[Cc][Oo][Vv][Ee][Rr].[Jj][Pp][Gg]")
+            f for f in self._pack_from_dir.glob("*") if fnmatch(f.name, "[Cc][Oo][Vv][Ee][Rr].[Jj][Pp][Gg]")
         )
 
         # 修改漫画文件夹时间戳为原 EPUB 文档内部的时间戳
@@ -447,5 +444,6 @@ class SingleRepacker(IRepacker):
         # 修改新建立的 CBZ 文件时间戳为原 EPUB 文档内部的时间戳
         copy_file_timestamp(comic_cover, cbz_path)
 
-        self.log(f"{self.comic_name} => [green]打包完成")
+        self.dlogger.update_log(f"✅ {self.comic_name} => [green]打包完成")
+
         return cbz_path

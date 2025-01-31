@@ -1,5 +1,9 @@
+from collections import deque
+
 from rich import print as rich_print
 from rich.box import DOUBLE
+from rich.console import Console, OverflowMethod
+from rich.layout import Layout
 from rich.panel import Panel
 from rich.table import Table
 
@@ -34,9 +38,37 @@ class PathTable(Table):
         self.add_row("[cyan]缓存目录", cache_dir)
 
 
-def log(console, s: str, overflow="fold"):
-    console.print(f"[blue][{curr_time_format()}][/] {s}", overflow=overflow)
+class DynamicLogger:
+    def __init__(self, console: Console, log_lines: int = 8):
+        self.console = console
+        self.status = self.console.status("")
+        self._log_content = deque(maxlen=log_lines)
+
+    def init_log_layout(self, layout: Layout):
+        self._log_layout = layout
+
+    def update(self, s: str):
+        self._log_content.append(s)
+        self._log_layout.update("\n".join(self._log_content))
+
+    def update_log(self, s: str):
+        s = get_log_str(s)
+        self.update(s)
 
 
-def pure_log(s: str):
-    rich_print(f"[blue][{curr_time_format()}][/] {s}")
+def tui_print(console: Console, s: str | Panel, overflow: OverflowMethod = "fold", verbose: bool = True):
+    if verbose:
+        console.print(s, overflow=overflow)
+
+
+def get_log_str(s: str) -> str:
+    return f"[blue][{curr_time_format()}][/] {s}"
+
+
+def tui_log(console: Console, s: str, overflow: OverflowMethod = "fold", verbose: bool = True):
+    tui_print(console, get_log_str(s), overflow, verbose)
+
+
+def pure_log(s: str, verbose: bool = True):
+    if verbose:
+        rich_print(get_log_str(s))
